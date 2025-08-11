@@ -177,10 +177,16 @@ export interface UserState extends LoadingState {
   clearUser: () => void
 }
 
+export interface AddActivitiesResult {
+  added: number
+  duplicates: number
+  total: number
+}
+
 export interface ActivitiesState extends LoadingState {
   list: SimpleActivity[]
-  addActivities: (activities: SimpleActivity[]) => void
-  addActivity: (activity: SimpleActivity) => void
+  addActivities: (activities: SimpleActivity[]) => AddActivitiesResult
+  addActivity: (activity: SimpleActivity) => AddActivitiesResult
   updateActivity: (id: string, updates: Partial<SimpleActivity>) => void
   removeActivity: (id: string) => void
   clear: () => void

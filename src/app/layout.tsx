@@ -6,7 +6,7 @@ import Image from "next/image";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserSelector } from "@/components/UserSelector";
 import { RaceCountdown } from "@/components/RaceCountdown";
-import { HomeIcon, CloudArrowUpIcon, Cog6ToothIcon, CalendarIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, Cog6ToothIcon, CalendarIcon, ChartBarIcon } from "@heroicons/react/24/outline";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,9 +54,9 @@ export default function RootLayout({
                   <CalendarIcon className="w-4 h-4" />
                   Plan
                 </Link>
-                <Link href="/upload" className="flex items-center gap-1.5 hover:underline">
-                  <CloudArrowUpIcon className="w-4 h-4" />
-                  Upload
+                <Link href="/analyze" className="flex items-center gap-1.5 hover:underline">
+                  <ChartBarIcon className="w-4 h-4" />
+                  Analyze
                 </Link>
                 <Link href="/setup" className="flex items-center gap-1.5 hover:underline">
                   <Cog6ToothIcon className="w-4 h-4" />
@@ -79,9 +79,9 @@ export default function RootLayout({
                   <CalendarIcon className="w-4 h-4" />
                   Plan
                 </Link>
-                <Link href="/upload" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
-                  <CloudArrowUpIcon className="w-4 h-4" />
-                  Upload
+                <Link href="/analyze" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
+                  <ChartBarIcon className="w-4 h-4" />
+                  Analyze
                 </Link>
                 <Link href="/setup" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
                   <Cog6ToothIcon className="w-4 h-4" />

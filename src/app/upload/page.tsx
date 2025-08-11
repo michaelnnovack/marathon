@@ -20,6 +20,9 @@ type QueueItem = {
   error?: string
   addedAt: number
   progress?: number // 0-1 for parsing progress
+  activitiesFound?: number
+  duplicatesSkipped?: number
+  activitiesAdded?: number
 }
 
 export default function UploadPage() {
@@ -30,7 +33,7 @@ export default function UploadPage() {
   const [activeProcessing, setActiveProcessing] = useState(0)
   const [uiActivities, setUiActivities] = useState<SimpleActivity[]>([])
   const acts = useActivities()
-  useEffect(() => { acts.hydrate() }, [acts])
+  useEffect(() => { acts.hydrate() }, [acts.hydrate])
   
   // Cleanup on unmount
   useEffect(() => {
@@ -122,28 +125,40 @@ export default function UploadPage() {
     }
 
     try {
+      let result: { added: number; duplicates: number; total: number }
+      let parsedActivities: SimpleActivity[] = []
+      
       if (item.ext === 'tcx') {
         const parsed: TcxActivity[] = await parseTcx(item.file, updateProgress)
-        const mapped: SimpleActivity[] = parsed.map(a => ({ 
+        parsedActivities = parsed.map(a => ({ 
           date: a.startTime, 
           distance: a.distance || 0, 
           duration: a.duration || 0, 
           avgHr: a.avgHr, 
           elevationGain: a.elevationGain 
         }))
-        setUiActivities((prev) => [...prev, ...mapped])
-        acts.addActivities(mapped)
+        result = acts.addActivities(parsedActivities)
       } else if (item.ext === 'gpx') {
-        const parsed = await parseGpx(item.file, updateProgress)
-        setUiActivities((prev) => [...prev, ...parsed])
-        acts.addActivities(parsed)
+        parsedActivities = await parseGpx(item.file, updateProgress)
+        result = acts.addActivities(parsedActivities)
       } else {
         throw new Error('Unsupported file type')
       }
       
+      // Only add non-duplicate activities to UI display
+      const newActivities = parsedActivities.slice(0, result.added)
+      setUiActivities((prev) => [...prev, ...newActivities])
+      
       setQueue((prev) => prev.map(q => 
         q.id === item.id 
-          ? { ...q, status: 'done', progress: 1 } 
+          ? { 
+              ...q, 
+              status: 'done', 
+              progress: 1,
+              activitiesFound: result.total,
+              duplicatesSkipped: result.duplicates,
+              activitiesAdded: result.added
+            } 
           : q
       ))
     } catch (err: unknown) {
@@ -194,6 +209,8 @@ export default function UploadPage() {
   const total = queue.length
   const completed = queue.filter(q => q.status === 'done').length
   const errors = queue.filter(q => q.status === 'error').length
+  const totalDuplicates = queue.reduce((sum, q) => sum + (q.duplicatesSkipped || 0), 0)
+  const totalAdded = queue.reduce((sum, q) => sum + (q.activitiesAdded || 0), 0)
 
   const chartData = useMemo(() => uiActivities.map((a, i) => ({ i, km: (a.distance || 0) / 1000, min: (a.duration || 0) / 60 })), [uiActivities])
 
@@ -252,6 +269,8 @@ export default function UploadPage() {
               <div className="text-sm opacity-80">Queue {processing && `(${activeProcessing} active)`}</div>
               <div className="text-xs opacity-70">
                 {completed}/{total} done{errors ? `, ${errors} errors` : ''}
+                {totalAdded > 0 && <span className="text-green-600"> · {totalAdded} added</span>}
+                {totalDuplicates > 0 && <span className="text-orange-600"> · {totalDuplicates} duplicates</span>}
                 {processing && (
                   <span className="ml-2 inline-flex items-center">
                     <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
@@ -269,6 +288,14 @@ export default function UploadPage() {
                     <div className="truncate flex-1">
                       <div className="truncate font-medium">{q.name}</div>
                       <div className="text-xs opacity-70">{(q.size/1024/1024).toFixed(1)} MB · {q.ext.toUpperCase()}</div>
+                      {q.status === 'done' && q.activitiesFound !== undefined && (
+                        <div className="text-xs opacity-70 mt-1">
+                          {q.activitiesAdded} added
+                          {q.duplicatesSkipped !== undefined && q.duplicatesSkipped > 0 && (
+                            <span className="text-orange-600"> · {q.duplicatesSkipped} duplicates skipped</span>
+                          )}
+                        </div>
+                      )}
                       {q.error && <div className="text-xs text-red-600 mt-1">{q.error}</div>}
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ml-2 ${

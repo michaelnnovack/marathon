@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, startTransition } from 'react'
 import { HeartIcon } from '@heroicons/react/24/outline'
 import { HeartRateZones as HRZones, HeartRateZone } from '@/types'
 
@@ -81,18 +81,44 @@ export default function HeartRateZones() {
   const [maxHR, setMaxHR] = useState<string>('')
   const [useCustomMax, setUseCustomMax] = useState(false)
 
+  // 🚀 Debounced input handlers to prevent blocking
+  const handleAgeChange = useCallback((value: string) => {
+    startTransition(() => {
+      setAge(value)
+    })
+  }, [])
+
+  const handleRestingHRChange = useCallback((value: string) => {
+    startTransition(() => {
+      setRestingHR(value)
+    })
+  }, [])
+
+  const handleMaxHRChange = useCallback((value: string) => {
+    startTransition(() => {
+      setMaxHR(value)
+    })
+  }, [])
+
+  // 🚀 Memoize expensive calculations to prevent blocking
   const heartRateZones: HRZones | null = useMemo(() => {
+    // Early returns for performance
+    if (!age || !restingHR) return null
+    
     const ageNum = parseInt(age)
     const restingNum = parseInt(restingHR)
     
-    if (!ageNum || !restingNum || ageNum < 10 || ageNum > 100 || restingNum < 30 || restingNum > 100) {
+    // Validate inputs quickly
+    if (isNaN(ageNum) || isNaN(restingNum) || 
+        ageNum < 10 || ageNum > 100 || 
+        restingNum < 30 || restingNum > 100) {
       return null
     }
 
     let maxHRValue: number
     if (useCustomMax && maxHR) {
       const customMax = parseInt(maxHR)
-      if (customMax < 100 || customMax > 250) return null
+      if (isNaN(customMax) || customMax < 100 || customMax > 250) return null
       maxHRValue = customMax
     } else {
       maxHRValue = calculateMaxHR(ageNum, 'tanaka')
@@ -100,6 +126,7 @@ export default function HeartRateZones() {
 
     if (maxHRValue <= restingNum) return null
 
+    // Only calculate zones if we have valid data
     return {
       maxHR: maxHRValue,
       restingHR: restingNum,
@@ -132,11 +159,11 @@ export default function HeartRateZones() {
           <input
             type="number"
             value={age}
-            onChange={(e) => setAge(e.target.value)}
+            onChange={(e) => handleAgeChange(e.target.value)}
             placeholder="25"
             min="10"
             max="100"
-            className="w-full px-3 py-2 rounded-lg border border-black/20 dark:border-white/20 bg-white dark:bg-black/50 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-black/20 dark:border-white/20 bg-white dark:bg-black/50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         
@@ -145,11 +172,11 @@ export default function HeartRateZones() {
           <input
             type="number"
             value={restingHR}
-            onChange={(e) => setRestingHR(e.target.value)}
+            onChange={(e) => handleRestingHRChange(e.target.value)}
             placeholder="60"
             min="30"
             max="100"
-            className="w-full px-3 py-2 rounded-lg border border-black/20 dark:border-white/20 bg-white dark:bg-black/50 text-sm"
+            className="w-full px-3 py-2 rounded-lg border border-black/20 dark:border-white/20 bg-white dark:bg-black/50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
 
@@ -166,12 +193,12 @@ export default function HeartRateZones() {
           <input
             type="number"
             value={maxHR}
-            onChange={(e) => setMaxHR(e.target.value)}
+            onChange={(e) => handleMaxHRChange(e.target.value)}
             placeholder={age ? calculateMaxHR(parseInt(age)).toString() : "190"}
             min="100"
             max="250"
             disabled={!useCustomMax}
-            className="w-full px-3 py-2 rounded-lg border border-black/20 dark:border-white/20 bg-white dark:bg-black/50 text-sm disabled:opacity-50"
+            className="w-full px-3 py-2 rounded-lg border border-black/20 dark:border-white/20 bg-white dark:bg-black/50 text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
       </div>

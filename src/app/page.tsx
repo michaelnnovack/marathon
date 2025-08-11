@@ -99,10 +99,8 @@ const DASHBOARD_CACHE_DURATION = 30 * 1000; // 30 seconds
 function useDashboardData() {
   const user = useUserStore((s) => s.user)
   const hydrateUser = useUserStore((s) => s.hydrate)
-  const activities = useActivities((s) => ({ 
-    list: s.list.slice(-100), // Only take last 100 activities for performance
-    hydrate: s.hydrate 
-  }))
+  const activities = useActivities((s) => s.list.slice(-100)) // Only take last 100 activities for performance
+  const activitiesHydrate = useActivities((s) => s.hydrate)
   const progress = useProgress()
   const [isClientSide, setIsClientSide] = useState(false)
 
@@ -115,7 +113,7 @@ function useDashboardData() {
       // Batch hydration operations
       Promise.all([
         hydrateUser(),
-        activities.hydrate(),
+        activitiesHydrate(),
         progress.hydrate()
       ]).then(() => {
         if (mounted) setIsClientSide(true)
@@ -128,7 +126,7 @@ function useDashboardData() {
       mounted = false
       clearTimeout(timer)
     }
-  }, [hydrateUser, activities, progress]) // Include all dependencies
+  }, [hydrateUser, activitiesHydrate, progress.hydrate]) // Include all dependencies
 
   const daysToRace = useMemo(() => {
     if (!user?.raceDate) return undefined
@@ -148,13 +146,13 @@ function useDashboardData() {
       isLoading: false
     }
 
-    if (!isClientSide || !activities.list.length) {
+    if (!isClientSide || !activities.length) {
       return defaults
     }
 
     // Create cache key from data length and timestamp
     const now = Date.now()
-    const checksum = `${activities.list.length}-${Math.floor(now / DASHBOARD_CACHE_DURATION)}`
+    const checksum = `${activities.length}-${Math.floor(now / DASHBOARD_CACHE_DURATION)}`
     
     // Return cached data if available and fresh
     if (dashboardCache && 
@@ -164,11 +162,11 @@ function useDashboardData() {
     }
     
     // Emergency mode for large datasets
-    if (activities.list.length > 50) {
-      console.log(`Performance mode: using minimal calculations for ${activities.list.length} activities`)
+    if (activities.length > 50) {
+      console.log(`Performance mode: using minimal calculations for ${activities.length} activities`)
       const result = {
         ...defaults,
-        workoutsLogged: activities.list.filter(a => a.date).length,
+        workoutsLogged: activities.filter(a => a.date).length,
         isLoading: false
       }
       
@@ -179,11 +177,11 @@ function useDashboardData() {
     // Efficient calculations for smaller datasets
     try {
       // Use web worker or timeout for heavy calculations
-      const weekly = weeklyMileageKm(activities.list)
-      const thisWeekKm = last7DaysMileageKm(activities.list)
+      const weekly = weeklyMileageKm(activities)
+      const thisWeekKm = last7DaysMileageKm(activities)
       const last4WeeksKm = weekly.slice(-4).reduce((s, x) => s + x.km, 0)
-      const pred = predictMarathonTime(activities.list)
-      const workoutsLogged = activitiesWithDatesCount(activities.list)
+      const pred = predictMarathonTime(activities)
+      const workoutsLogged = activitiesWithDatesCount(activities)
       
       const result = {
         weekly,
@@ -203,7 +201,7 @@ function useDashboardData() {
       dashboardCache = { data: result, checksum, timestamp: now }
       return result
     }
-  }, [activities.list, isClientSide]) // Include full activities.list dependency
+  }, [activities, isClientSide]) // Include full activities dependency
 
   const { weekly, thisWeekKm, last4WeeksKm, pred, workoutsLogged, isLoading } = dashboardMetrics
 

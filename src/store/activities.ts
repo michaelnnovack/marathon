@@ -1,7 +1,44 @@
 import { create } from 'zustand'
-import type { ActivitiesState, SimpleActivity } from '@/types'
+import type { ActivitiesState, SimpleActivity, AddActivitiesResult } from '@/types'
 
 const KEY = 'mt_activities'
+
+// Helper function to create a unique identifier for duplicate detection
+function getActivityFingerprint(activity: SimpleActivity): string {
+  // Use date, distance, and duration as primary identifiers
+  const date = activity.date ? new Date(activity.date).getTime() : 0
+  const distance = Math.round((activity.distance || 0) / 10) * 10 // Round to nearest 10m
+  const duration = Math.round((activity.duration || 0) / 10) * 10 // Round to nearest 10s
+  
+  return `${date}-${distance}-${duration}`
+}
+
+// Helper function to detect and filter out duplicates
+function filterDuplicates(existing: SimpleActivity[], newActivities: SimpleActivity[]): {
+  uniqueActivities: SimpleActivity[]
+  duplicateCount: number
+} {
+  const existingFingerprints = new Set(existing.map(getActivityFingerprint))
+  const uniqueActivities: SimpleActivity[] = []
+  const seenFingerprints = new Set<string>()
+  
+  let duplicateCount = 0
+  
+  for (const activity of newActivities) {
+    const fingerprint = getActivityFingerprint(activity)
+    
+    // Skip if already exists in current list or already seen in this batch
+    if (existingFingerprints.has(fingerprint) || seenFingerprints.has(fingerprint)) {
+      duplicateCount++
+      continue
+    }
+    
+    uniqueActivities.push(activity)
+    seenFingerprints.add(fingerprint)
+  }
+  
+  return { uniqueActivities, duplicateCount }
+}
 
 export const useActivities = create<ActivitiesState>()((set, get) => ({
     list: [],
@@ -11,42 +48,71 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
     
     addActivities: (activities) => {
       const current = get().list
-      const next = [...current, ...activities]
+      const { uniqueActivities, duplicateCount } = filterDuplicates(current, activities)
+      
+      if (duplicateCount > 0) {
+        console.log(`Filtered out ${duplicateCount} duplicate activities`)
+      }
+      
+      const result: AddActivitiesResult = {
+        total: activities.length,
+        duplicates: duplicateCount,
+        added: uniqueActivities.length
+      }
+      
+      if (uniqueActivities.length === 0) {
+        console.log('No new activities to add after duplicate filtering')
+        return result
+      }
+      
+      const next = [...current, ...uniqueActivities]
       
       // Save to localStorage asynchronously to prevent blocking
       if (typeof window !== 'undefined') {
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           try {
             localStorage.setItem(KEY, JSON.stringify(next))
-            set({ lastUpdated: new Date().toISOString(), error: undefined })
           } catch (error) {
             console.error('Failed to save activities:', error)
-            set({ error: 'Failed to save activities' })
           }
-        })
+        }, 0)
       }
       
-      set({ list: next })
+      set({ list: next, lastUpdated: new Date().toISOString() })
+      return result
     },
 
     addActivity: (activity) => {
       const current = get().list
-      const id = activity.id || crypto.randomUUID()
-      const next = [...current, { ...activity, id }]
+      const { uniqueActivities, duplicateCount } = filterDuplicates(current, [activity])
       
-      if (typeof window !== 'undefined') {
-        requestAnimationFrame(() => {
-          try {
-            localStorage.setItem(KEY, JSON.stringify(next))
-            set({ lastUpdated: new Date().toISOString(), error: undefined })
-          } catch (error) {
-            console.error('Failed to save activity:', error)
-            set({ error: 'Failed to save activity' })
-          }
-        })
+      const result: AddActivitiesResult = {
+        total: 1,
+        duplicates: duplicateCount,
+        added: uniqueActivities.length
       }
       
-      set({ list: next })
+      if (duplicateCount > 0) {
+        console.log('Activity already exists, skipping duplicate')
+        return result
+      }
+      
+      const id = activity.id || crypto.randomUUID()
+      const activityWithId = { ...uniqueActivities[0], id }
+      const next = [...current, activityWithId]
+      
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          try {
+            localStorage.setItem(KEY, JSON.stringify(next))
+          } catch (error) {
+            console.error('Failed to save activity:', error)
+          }
+        }, 0)
+      }
+      
+      set({ list: next, lastUpdated: new Date().toISOString() })
+      return result
     },
 
     updateActivity: (id, updates) => {
@@ -58,15 +124,13 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
       next[index] = { ...next[index], ...updates }
       
       if (typeof window !== 'undefined') {
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           try {
             localStorage.setItem(KEY, JSON.stringify(next))
-            set({ lastUpdated: new Date().toISOString(), error: undefined })
           } catch (error) {
             console.error('Failed to update activity:', error)
-            set({ error: 'Failed to update activity' })
           }
-        })
+        }, 0)
       }
       
       set({ list: next })
@@ -77,15 +141,13 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
       const next = current.filter(a => a.id !== id)
       
       if (typeof window !== 'undefined') {
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           try {
             localStorage.setItem(KEY, JSON.stringify(next))
-            set({ lastUpdated: new Date().toISOString(), error: undefined })
           } catch (error) {
             console.error('Failed to remove activity:', error)
-            set({ error: 'Failed to remove activity' })
           }
-        })
+        }, 0)
       }
       
       set({ list: next })
@@ -122,7 +184,7 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
       set({ isLoading: true, error: undefined })
       
       return new Promise<void>((resolve) => {
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           try {
             const raw = localStorage.getItem(KEY)
             if (raw) {
@@ -170,7 +232,7 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
             })
           }
           resolve()
-        })
+        }, 0)
       })
     }
   }))
