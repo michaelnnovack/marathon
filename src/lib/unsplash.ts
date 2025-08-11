@@ -24,9 +24,9 @@ export interface UnsplashImage {
   }
 }
 
-// Simple in-memory cache for images
+// Simple in-memory cache for images - cleared for fresh cartoon images
 const imageCache = new Map<string, UnsplashImage[]>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 1 * 60 * 1000 // 1 minute for testing
 
 // Search for running/marathon related images
 export async function getRunningImages(query: string = 'marathon running', count: number = 10) {
@@ -80,12 +80,12 @@ export const imageCollections = {
   motivation: () => getRunningImages('marathon runner motivation', 6),
 }
 
-// Fallback images when Unsplash is not available - using placeholder.com service
+// Fallback images when Unsplash is not available - using cartoon-style placeholders
 export const fallbackImages = {
-  hero: 'https://via.placeholder.com/1200x400/4f46e5/ffffff?text=Marathon+Training',
-  dashboard: 'https://via.placeholder.com/800x300/10b981/ffffff?text=Dashboard', 
-  training: 'https://via.placeholder.com/600x300/f59e0b/ffffff?text=Training',
-  upload: 'https://via.placeholder.com/400x200/ef4444/ffffff?text=Upload',
-  setup: 'https://via.placeholder.com/400x200/8b5cf6/ffffff?text=Setup',
-  plan: 'https://via.placeholder.com/400x200/06b6d4/ffffff?text=Plan',
+  hero: 'https://via.placeholder.com/1200x400/4f46e5/ffffff?text=🏃‍♂️+Marathon+Training',
+  dashboard: 'https://via.placeholder.com/800x300/10b981/ffffff?text=📊+Dashboard', 
+  training: 'https://via.placeholder.com/600x300/f59e0b/ffffff?text=🏋️‍♂️+Training',
+  upload: 'https://via.placeholder.com/400x200/ef4444/ffffff?text=📤+Upload',
+  setup: 'https://via.placeholder.com/400x200/8b5cf6/ffffff?text=⚙️+Setup',
+  plan: 'https://via.placeholder.com/400x200/06b6d4/ffffff?text=📅+Plan',
 }

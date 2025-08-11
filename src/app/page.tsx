@@ -11,10 +11,11 @@ import { LazyChart } from '@/components/LazyChart'
 import { Card, CardHeader, CardContent, MetricCard } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ErrorBoundaryWrapper } from '@/components/ErrorBoundary'
-import { HeroImage, CardImage } from '@/components/SimpleFallback'
+import { HeroImage, CardImage } from '@/components/UnsplashImage'
 
 // Lazy load heavy components
 import dynamic from 'next/dynamic'
+import ActivityList from '@/components/ActivityList'
 const ActivityCard = dynamic(() => import('@/components/ActivityCard'), {
   loading: () => <LoadingCard />
 })
@@ -306,8 +307,8 @@ export default function Home() {
     <div className="space-y-6">
       {/* Hero Section */}
       <HeroImage 
-        query="marathon runner training motivation dawn" 
-        className="h-48 sm:h-64 rounded-2xl"
+        query="cartoon illustration marathon runner training motivation dawn" 
+        className="h-48 rounded-2xl"
       >
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Marathon Training</h1>
         <p className="text-lg opacity-90">Your personal training companion</p>
@@ -386,7 +387,7 @@ export default function Home() {
                 <CardHeader 
                   icon={
                     <CardImage 
-                      query="coach trainer motivation running" 
+                      query="cartoon illustration coach trainer motivation running" 
                       className="w-8 h-8 rounded object-cover flex-shrink-0" 
                       small={true} 
                     />
@@ -415,7 +416,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <CardImage 
-                query="running statistics chart progress" 
+                query="cartoon illustration running statistics chart progress" 
                 className="w-8 h-8 rounded object-cover" 
                 small={true} 
               />
@@ -453,7 +454,7 @@ export default function Home() {
       )}
 
 
-      {/* Recent Activities with GPS Routes */}
+  {/* Recent Activities with GPS Routes */}
       {!isLoading && acts.list.filter(a => a.trackPoints && a.trackPoints.length > 0).length > 0 && (
         <section className="rounded-2xl p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
           <h3 className="font-medium mb-4">Recent Activities with GPS Routes</h3>
@@ -469,7 +470,16 @@ export default function Home() {
           </div>
         </section>
       )}
-      
+      {/* Virtualized All Activities List for sophisticated UX on large sets */}
+      {!isLoading && acts.list.length > 50 && (
+        <section className="rounded-2xl p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium">All Activities</h3>
+            <span className="text-xs opacity-70">{acts.list.length} total</span>
+          </div>
+          <ActivityList activities={acts.list} ariaLabel="All Activities" />
+        </section>
+      )}
       {/* Loading state for GPS activities */}
       {isLoading && (
         <section className="rounded-2xl p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">

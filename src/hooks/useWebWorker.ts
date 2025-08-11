@@ -18,6 +18,22 @@ interface ProcessedData {
   activitiesWithGPS: number
 }
 
+// Minimal shape passed to the worker to reduce structured clone overhead
+type MinimalActivity = Pick<SimpleActivity, 'date' | 'distance' | 'duration'> & {
+  hasGPS?: boolean
+}
+
+function toMinimalActivities(list: SimpleActivity[]): MinimalActivity[] {
+  // Map to the minimal shape needed by the worker
+  // Avoid sending large trackPoints arrays across the thread boundary
+  return list.map(a => ({
+    date: a.date,
+    distance: a.distance,
+    duration: a.duration,
+    hasGPS: !!(a.trackPoints && a.trackPoints.length > 0)
+  }))
+}
+
 export function useWebWorker() {
   const workerRef = useRef<Worker | null>(null)
   
@@ -32,7 +48,7 @@ export function useWebWorker() {
   }, [])
   
   const calculateAsync = useCallback((
-    type: string, 
+    type: string,
     data: { activities: SimpleActivity[] },
     onProgress?: (progress: number) => void
   ): Promise<unknown> => {
@@ -92,7 +108,13 @@ export function useWebWorker() {
       
       workerRef.current.addEventListener('message', handleMessage)
       workerRef.current.addEventListener('error', handleError)
-      workerRef.current.postMessage({ type, data })
+
+      // Serialize activities to a minimal payload to cut clone time and memory
+      const payload = {
+        activities: toMinimalActivities(data.activities)
+      }
+
+      workerRef.current.postMessage({ type, data: payload })
     })
   }, [initWorker])
   
@@ -104,13 +126,13 @@ export function useWebWorker() {
   }, [])
   
   return {
-    calculateWeeklyMileage: (activities: SimpleActivity[]) => 
+    calculateWeeklyMileage: (activities: SimpleActivity[]) =>
       calculateAsync('CALCULATE_WEEKLY_MILEAGE', { activities }) as Promise<WeeklyMileage[]>,
     
     processActivities: (activities: SimpleActivity[], onProgress?: (progress: number) => void) =>
       calculateAsync('PROCESS_ACTIVITIES', { activities }, onProgress) as Promise<ProcessedData>,
     
-    predictMarathonTime: (activities: SimpleActivity[]) => 
+  predictMarathonTime: (activities: SimpleActivity[]) =>
       calculateAsync('CALCULATE_PREDICTIONS', { activities }) as Promise<PredictionResult>,
     
     cleanup

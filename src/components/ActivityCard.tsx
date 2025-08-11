@@ -42,11 +42,11 @@ export default function ActivityCard({ activity, index }: ActivityCardProps) {
   }
 
   return (
-    <div className="rounded-lg p-4 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
+    <div className="rounded-lg p-4 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30" role="listitem" aria-label={`Activity ${index !== undefined ? index + 1 : ''}`}>
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3 flex-1">
           <CardImage 
-            query="running activity workout training" 
+            query="cartoon illustration running activity workout training" 
             className="w-10 h-10 rounded-full object-cover flex-shrink-0" 
             small={true} 
           />
@@ -59,9 +59,13 @@ export default function ActivityCard({ activity, index }: ActivityCardProps) {
             </p>
           </div>
         </div>
-        {activity.trackPoints && activity.trackPoints.length > 0 && (
+    {activity.trackPoints && activity.trackPoints.length > 0 && (
           <button
-            onClick={() => setShowMap(!showMap)}
+      onClick={() => setShowMap(!showMap)}
+      aria-pressed={showMap}
+      aria-label={showMap ? 'Hide route map' : 'Show route map'}
+      title={showMap ? 'Hide route map' : 'Show route map'}
+      type="button"
             className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
           >
             {showMap ? (
@@ -104,9 +108,9 @@ export default function ActivityCard({ activity, index }: ActivityCardProps) {
         )}
       </div>
 
-      {showMap && activity.trackPoints && (
+    {showMap && activity.trackPoints && (
         <div className="mt-4">
-          <RouteMap trackPoints={activity.trackPoints} height="200px" />
+      <RouteMap trackPoints={activity.trackPoints} height="200px" />
         </div>
       )}
     </div>

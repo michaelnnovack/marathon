@@ -26,6 +26,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-leaflet": "^5.0.0",
+    "react-virtualized-auto-sizer": "^1.0.26",
+    "react-window": "^1.8.11",
     "recharts": "^2.10.3",
     "unsplash-js": "^7.0.19",
     "zustand": "^4.5.2"
@@ -35,6 +37,7 @@
     "@types/node": "^20.14.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/react-window": "^1.8.8",
     "autoprefixer": "^10.4.19",
     "critters": "^0.0.22",
     "eslint": "^9.7.0",

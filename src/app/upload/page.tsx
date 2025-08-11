@@ -7,8 +7,8 @@ import type { SimpleActivity } from '@/types'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { CloudArrowUpIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
 import ActivityCard from '@/components/ActivityCard'
-// import { HeroImage, CardImage } from '@/components/UnsplashImage'
-import { HeroImage, CardImage } from '@/components/SimpleFallback'
+import { HeroImage, CardImage } from '@/components/UnsplashImage'
+// import { HeroImage, CardImage } from '@/components/SimpleFallback'
 
 type QueueItem = {
   id: string
@@ -219,7 +219,7 @@ export default function UploadPage() {
     <div className="space-y-6">
       {/* Hero Section */}
       <HeroImage 
-        query="GPS watch running data athlete technology" 
+        query="cartoon illustration GPS watch running data athlete technology" 
         className="h-40 rounded-2xl"
       >
         <h1 className="text-3xl font-bold mb-2">Upload Activities</h1>
@@ -359,7 +359,7 @@ export default function UploadPage() {
           <div className="rounded-xl border border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-black/30">
             <div className="flex items-center gap-3 mb-2">
               <CardImage 
-                query="running activity data success" 
+                query="cartoon illustration running activity data success" 
                 className="w-6 h-6 rounded object-cover" 
                 small={true} 
               />

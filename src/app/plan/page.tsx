@@ -60,13 +60,13 @@ function estimateDistance(type: WorkoutType, duration: number): string {
 
 function getWorkoutTypeImage(type: WorkoutType): string {
   const queries: Record<WorkoutType, string> = {
-    easy: 'easy running jogging relaxed',
-    recovery: 'light jogging recovery walking',
-    tempo: 'tempo running speed steady',
-    interval: 'sprinting intervals track fast',
-    long: 'long distance marathon endurance',
-    cross: 'cross training cycling swimming',
-    race: 'marathon race running competition'
+    easy: 'cartoon illustration easy running jogging relaxed',
+    recovery: 'cartoon illustration light jogging recovery walking',
+    tempo: 'cartoon illustration tempo running speed steady',
+    interval: 'cartoon illustration sprinting intervals track fast',
+    long: 'cartoon illustration long distance marathon endurance',
+    cross: 'cartoon illustration cross training cycling swimming',
+    race: 'cartoon illustration marathon race running competition'
   }
   return queries[type] || 'running workout training'
 }
@@ -117,7 +117,7 @@ export default function PlanPage() {
     <div className="space-y-8">
       {/* Hero Section */}
       <HeroImage 
-        query="training schedule calendar runner planning" 
+        query="cartoon illustration training schedule calendar runner planning" 
         className="h-48 rounded-2xl"
       >
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Training Calendar</h1>

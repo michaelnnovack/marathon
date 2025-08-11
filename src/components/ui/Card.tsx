@@ -37,13 +37,20 @@ interface CardHeaderProps {
   children: ReactNode
   className?: string
   icon?: ReactNode
+  size?: 'sm' | 'md' | 'lg'
 }
 
-export function CardHeader({ children, className, icon }: CardHeaderProps) {
+export function CardHeader({ children, className, icon, size = 'md' }: CardHeaderProps) {
+  const headingClasses = clsx({
+    'text-sm font-medium': size === 'sm',
+    'text-base font-medium': size === 'md', 
+    'text-lg font-semibold': size === 'lg'
+  })
+  
   return (
     <div className={clsx('flex items-center gap-2 mb-4', className)}>
       {icon}
-      <h3 className="font-medium">{children}</h3>
+      <h3 className={headingClasses}>{children}</h3>
     </div>
   )
 }

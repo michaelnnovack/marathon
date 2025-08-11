@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { HeroImage } from '@/components/SimpleFallback'
+import { HeroImage } from '@/components/UnsplashImage'
 import { useActivities } from '@/store/activities'
 import { useUserStore } from '@/store/user'
 import { ChartBarIcon, CalendarIcon, ClockIcon, MapIcon, ExclamationTriangleIcon, FireIcon } from '@heroicons/react/24/outline'
@@ -153,7 +153,7 @@ export default function AnalyzePage() {
     return (
       <div className="space-y-8">
         <HeroImage 
-          query="running data analysis performance dashboard empty" 
+          query="cartoon illustration running data analysis performance dashboard empty" 
           className="h-48 rounded-2xl"
         >
           <h1 className="text-3xl sm:text-4xl font-bold mb-2">Performance Analysis</h1>
@@ -180,7 +180,7 @@ export default function AnalyzePage() {
     <div className="space-y-8">
       {/* Hero Section */}
       <HeroImage 
-        query="running analytics performance data insights dashboard" 
+        query="cartoon illustration running analytics performance data insights dashboard" 
         className="h-48 rounded-2xl"
       >
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Performance Analysis</h1>
@@ -265,8 +265,8 @@ export default function AnalyzePage() {
       {insights && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold">Marathon Goal Progress</h3>
+            <CardHeader size="lg">
+              Marathon Goal Progress
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
@@ -288,8 +288,8 @@ export default function AnalyzePage() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold">Performance Trends</h3>
+            <CardHeader size="lg">
+              Performance Trends
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
@@ -315,8 +315,8 @@ export default function AnalyzePage() {
 
       {/* Recent Activities */}
       <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold">Recent Activities</h3>
+        <CardHeader size="lg">
+          Recent Activities
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

@@ -5,17 +5,17 @@ self.onmessage = function(e) {
   try {
     switch (type) {
       case 'CALCULATE_WEEKLY_MILEAGE':
-        const weekly = calculateWeeklyMileage(data.activities)
+  const weekly = calculateWeeklyMileage(data.activities || [])
         self.postMessage({ type: 'WEEKLY_MILEAGE_RESULT', data: weekly })
         break
       
       case 'PROCESS_ACTIVITIES':
-        const processed = processActivitiesData(data.activities)
+  const processed = processActivitiesData(data.activities || [])
         self.postMessage({ type: 'ACTIVITIES_PROCESSED', data: processed })
         break
         
       case 'CALCULATE_PREDICTIONS':
-        const prediction = calculateMarathonPrediction(data.activities)
+  const prediction = calculateMarathonPrediction(data.activities || [])
         self.postMessage({ type: 'PREDICTION_RESULT', data: prediction })
         break
         
@@ -36,7 +36,7 @@ function calculateWeeklyMileage(activities) {
   const byWeek = new Map()
   
   for (const activity of activities) {
-    if (!activity.date) continue
+  if (!activity || !activity.date) continue
     
     const date = new Date(activity.date)
     const monday = new Date(date)
@@ -49,7 +49,8 @@ function calculateWeeklyMileage(activities) {
     
     const key = monday.toISOString().slice(0, 10)
     const currentKm = byWeek.get(key) || 0
-    byWeek.set(key, currentKm + (activity.distance / 1000))
+  const dist = activity.distance || 0
+  byWeek.set(key, currentKm + (dist / 1000))
   }
   
   return Array.from(byWeek.entries())
@@ -86,12 +87,11 @@ function processActivitiesData(activities) {
     const chunk = activities.slice(i, i + CHUNK_SIZE)
     
     for (const activity of chunk) {
+      if (!activity) continue
       totalDistance += activity.distance || 0
       totalDuration += activity.duration || 0
       
-      if (activity.trackPoints && activity.trackPoints.length > 0) {
-        activitiesWithGPS++
-      }
+      if (activity.hasGPS) activitiesWithGPS++
       
       if (activity.date) {
         const activityDate = new Date(activity.date)
@@ -105,7 +105,7 @@ function processActivitiesData(activities) {
     }
     
     // Yield control periodically
-    if (i % (CHUNK_SIZE * 10) === 0) {
+    if (i % (CHUNK_SIZE * 20) === 0) {
       self.postMessage({ 
         type: 'PROGRESS', 
         progress: Math.round((i / activities.length) * 100) 
@@ -133,8 +133,8 @@ function calculateMarathonPrediction(activities) {
   
   // Filter activities for prediction (runs only, with reasonable distance/duration)
   const validRuns = activities.filter(activity => {
-    const distance = activity.distance || 0
-    const duration = activity.duration || 0
+    const distance = (activity && activity.distance) || 0
+    const duration = (activity && activity.duration) || 0
     
     // Must be at least 2km and have reasonable pace (3-12 min/km)
     if (distance < 2000 || duration < 360) return false
@@ -149,8 +149,8 @@ function calculateMarathonPrediction(activities) {
   
   // Calculate equivalent marathon times using Riegel formula
   const marathonTimes = validRuns.map(activity => {
-    const distance = activity.distance / 1000 // Convert to km
-    const duration = activity.duration
+    const distance = (activity.distance || 0) / 1000 // Convert to km
+    const duration = activity.duration || 0
     const marathonDistance = 42.195
     
     // Riegel formula: T2 = T1 * (D2/D1)^1.06
