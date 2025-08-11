@@ -1,7 +1,9 @@
 "use client"
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
+import { MapIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import type { SimpleActivity } from '@/store/activities'
+import { CardImage } from './UnsplashImage'
 
 const RouteMap = dynamic(() => import('./RouteMap'), { ssr: false })
 
@@ -42,20 +44,37 @@ export default function ActivityCard({ activity, index }: ActivityCardProps) {
   return (
     <div className="rounded-lg p-4 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
       <div className="flex justify-between items-start mb-3">
-        <div>
-          <h3 className="font-medium">
-            {activity.date ? formatDate(activity.date) : `Activity ${(index || 0) + 1}`}
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {formatDistance(activity.distance)} • {formatDuration(activity.duration)}
-          </p>
+        <div className="flex items-center gap-3 flex-1">
+          <CardImage 
+            query="running activity workout training" 
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0" 
+            small={true} 
+          />
+          <div>
+            <h3 className="font-medium">
+              {activity.date ? formatDate(activity.date) : `Activity ${(index || 0) + 1}`}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {formatDistance(activity.distance)} • {formatDuration(activity.duration)}
+            </p>
+          </div>
         </div>
         {activity.trackPoints && activity.trackPoints.length > 0 && (
           <button
             onClick={() => setShowMap(!showMap)}
-            className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+            className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
           >
-            {showMap ? 'Hide Map' : 'Show Route'}
+            {showMap ? (
+              <>
+                <EyeSlashIcon className="w-3 h-3" />
+                Hide Map
+              </>
+            ) : (
+              <>
+                <MapIcon className="w-3 h-3" />
+                Show Route
+              </>
+            )}
           </button>
         )}
       </div>

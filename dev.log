@@ -1,0 +1,80 @@
+
+> marathon@0.1.0 dev
+> next dev -p 3000
+
+   ▲ Next.js 15.4.6
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.2.77:3000
+   - Environments: .env.local
+   - Experiments (use with caution):
+     ✓ typedRoutes
+     ✓ optimizeCss
+
+ ✓ Starting...
+ ✓ Ready in 1101ms
+ ○ Compiling /setup ...
+ ✓ Compiled /setup in 1644ms (1429 modules)
+ ✓ Compiled in 307ms (634 modules)
+ GET /setup 200 in 2232ms
+ ✓ Compiled /favicon.ico in 230ms (812 modules)
+ GET /favicon.ico 200 in 320ms
+ ○ Compiling /upload ...
+ ✓ Compiled /upload in 1316ms (2514 modules)
+ GET /upload 200 in 1723ms
+ ✓ Compiled in 262ms (2514 modules)
+ ✓ Compiled in 269ms (2528 modules)
+ ✓ Compiled in 131ms (1175 modules)
+ ✓ Compiled in 117ms (1175 modules)
+ ✓ Compiled in 123ms (1175 modules)
+ ✓ Compiled in 298ms (2530 modules)
+ ✓ Compiled / in 500ms (2681 modules)
+ GET / 200 in 759ms
+ GET /upload 200 in 166ms
+ ✓ Compiled in 406ms (2665 modules)
+ GET / 200 in 293ms
+ GET / 200 in 64ms
+ ✓ Compiled in 545ms (2655 modules)
+ ✓ Compiled in 261ms (2655 modules)
+ GET / 200 in 247ms
+ ✓ Compiled in 239ms (2655 modules)
+ GET / 200 in 230ms
+ GET / 200 in 35ms
+ GET / 200 in 48ms
+ GET / 200 in 34ms
+ GET / 200 in 31ms
+ ✓ Compiled in 403ms (2655 modules)
+ GET / 200 in 181ms
+ ✓ Compiled /favicon.ico in 229ms (1415 modules)
+ GET /favicon.ico 200 in 301ms
+ ✓ Compiled /setup in 126ms (1428 modules)
+ GET /setup 200 in 215ms
+ ✓ Compiled in 258ms (2685 modules)
+ GET /setup 200 in 209ms
+ GET /favicon.ico 200 in 18ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 242ms (2685 modules)
+ GET /setup 200 in 344ms
+ GET /favicon.ico 200 in 11ms
+ GET /setup 200 in 86ms
+ GET /favicon.ico 200 in 13ms
+ GET /setup 200 in 69ms
+ GET /favicon.ico 200 in 9ms
+ GET /setup 200 in 75ms
+ GET /favicon.ico 200 in 19ms
+ ✓ Compiled in 463ms (2685 modules)
+ GET /setup 200 in 229ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /favicon.ico 200 in 18ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 509ms (2685 modules)
+ GET /setup 200 in 538ms
+ GET /favicon.ico 200 in 15ms
+ GET / 200 in 48ms
+ GET / 200 in 34ms
+ GET / 200 in 35ms
+ GET / 200 in 28ms
+ GET / 200 in 28ms
+ GET / 200 in 35ms
+ GET /setup 200 in 75ms
+ GET /favicon.ico 200 in 16ms

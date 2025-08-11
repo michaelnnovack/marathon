@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useUserStore } from '@/store/user'
 import { generatePlan } from '@/utils/plan'
 import { useProgress } from '@/store/progress'
+import { CheckIcon, ArrowLeftIcon, ClockIcon } from '@heroicons/react/24/outline'
 
 export default function DayClient({ date }: { date: string }) {
   const user = useUserStore((s) => s.user)
@@ -45,8 +46,9 @@ export default function DayClient({ date }: { date: string }) {
 
   return (
     <div className="space-y-4">
-      <Link href="/plan" className="text-sm underline">
-        ← Back to plan
+      <Link href="/plan" className="flex items-center gap-1 text-sm underline w-fit">
+        <ArrowLeftIcon className="w-3 h-3" />
+        Back to plan
       </Link>
       <h1 className="text-xl font-semibold">
         {workout.type} — {workout.date}
@@ -68,12 +70,16 @@ export default function DayClient({ date }: { date: string }) {
               className="min-h-24 p-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30"
             />
           </label>
-          <button onClick={save} className="mt-3 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+          <button onClick={save} className="flex items-center gap-2 mt-3 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+            <CheckIcon className="w-4 h-4" />
             Save
           </button>
         </div>
         <div className="rounded-xl border border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-black/30">
-          <h3 className="font-medium mb-2">Pace Zones</h3>
+          <div className="flex items-center gap-2 font-medium mb-2">
+            <ClockIcon className="w-4 h-4" />
+            Pace Zones
+          </div>
           <PaceZones goalTime={user.goalTime} />
         </div>
       </div>

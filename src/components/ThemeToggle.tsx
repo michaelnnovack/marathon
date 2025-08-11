@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 
 export function ThemeToggle() {
@@ -30,9 +30,9 @@ export function ThemeToggle() {
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
       >
         {theme === 'dark' ? (
-          <Sun className="w-5 h-5 text-yellow-300" />
+          <SunIcon className="w-5 h-5 text-yellow-300" />
         ) : (
-          <Moon className="w-5 h-5 text-slate-700" />
+          <MoonIcon className="w-5 h-5 text-slate-700" />
         )}
       </motion.div>
     </button>

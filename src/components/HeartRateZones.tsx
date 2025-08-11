@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo } from 'react'
+import { HeartIcon } from '@heroicons/react/24/outline'
 import { HeartRateZones as HRZones, HeartRateZone } from '@/types'
 
 function calculateMaxHR(age: number, method: 'tanaka' | 'fox' = 'tanaka'): number {
@@ -114,7 +115,10 @@ export default function HeartRateZones() {
 
   return (
     <div className="rounded-2xl p-4 sm:p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
-      <h3 className="font-medium mb-4">Heart Rate Zones Calculator</h3>
+      <div className="flex items-center gap-2 font-medium mb-4">
+        <HeartIcon className="w-5 h-5" />
+        <h3>Heart Rate Zones Calculator</h3>
+      </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div>

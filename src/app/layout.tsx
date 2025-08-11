@@ -6,20 +6,28 @@ import Image from "next/image";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserSelector } from "@/components/UserSelector";
 import { RaceCountdown } from "@/components/RaceCountdown";
+import { HomeIcon, CloudArrowUpIcon, Cog6ToothIcon, CalendarIcon } from "@heroicons/react/24/outline";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: 'swap',
+  preload: true
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: 'swap',
+  preload: false
 });
 
 export const metadata: Metadata = {
   title: "Marathon Trainer",
   description: "Personal marathon training coach",
+  icons: {
+    icon: "/bbm.ico",
+  },
 };
 
 export default function RootLayout({
@@ -38,10 +46,22 @@ export default function RootLayout({
                 <span className="hidden xs:inline sm:inline">Marathon</span>
               </Link>
               <nav className="hidden md:flex items-center gap-4 lg:gap-6 text-sm">
-                <Link href="/" className="hover:underline">Dashboard</Link>
-                <Link href="/plan" className="hover:underline">Plan</Link>
-                <Link href="/upload" className="hover:underline">Upload</Link>
-                <Link href="/setup" className="hover:underline">Setup</Link>
+                <Link href="/" className="flex items-center gap-1.5 hover:underline">
+                  <HomeIcon className="w-4 h-4" />
+                  Dashboard
+                </Link>
+                <Link href="/plan" className="flex items-center gap-1.5 hover:underline">
+                  <CalendarIcon className="w-4 h-4" />
+                  Plan
+                </Link>
+                <Link href="/upload" className="flex items-center gap-1.5 hover:underline">
+                  <CloudArrowUpIcon className="w-4 h-4" />
+                  Upload
+                </Link>
+                <Link href="/setup" className="flex items-center gap-1.5 hover:underline">
+                  <Cog6ToothIcon className="w-4 h-4" />
+                  Setup
+                </Link>
               </nav>
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="text-xs sm:text-sm hidden sm:block opacity-80"><RaceCountdown /></div>
@@ -51,10 +71,22 @@ export default function RootLayout({
             </div>
             <nav className="md:hidden border-t border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/20">
               <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-4 text-sm overflow-x-auto">
-                <Link href="/" className="hover:underline whitespace-nowrap">Dashboard</Link>
-                <Link href="/plan" className="hover:underline whitespace-nowrap">Plan</Link>
-                <Link href="/upload" className="hover:underline whitespace-nowrap">Upload</Link>
-                <Link href="/setup" className="hover:underline whitespace-nowrap">Setup</Link>
+                <Link href="/" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
+                  <HomeIcon className="w-4 h-4" />
+                  Dashboard
+                </Link>
+                <Link href="/plan" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
+                  <CalendarIcon className="w-4 h-4" />
+                  Plan
+                </Link>
+                <Link href="/upload" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
+                  <CloudArrowUpIcon className="w-4 h-4" />
+                  Upload
+                </Link>
+                <Link href="/setup" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
+                  <Cog6ToothIcon className="w-4 h-4" />
+                  Setup
+                </Link>
               </div>
             </nav>
           </header>

@@ -4,7 +4,10 @@ import { parseTcx, type Activity as TcxActivity } from '@/utils/tcx'
 import { parseGpx } from '@/utils/gpx'
 import { useActivities, type SimpleActivity, weeklyMileageKm } from '@/store/activities'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { CloudArrowUpIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
 import ActivityCard from '@/components/ActivityCard'
+// import { HeroImage, CardImage } from '@/components/UnsplashImage'
+import { HeroImage, CardImage } from '@/components/SimpleFallback'
 
 type QueueItem = {
   id: string
@@ -15,19 +18,46 @@ type QueueItem = {
   status: 'pending' | 'parsing' | 'done' | 'error'
   error?: string
   addedAt: number
+  progress?: number // 0-1 for parsing progress
 }
 
 export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [processing, setProcessing] = useState(false)
+  const [concurrentLimit] = useState(2) // Process max 2 files concurrently
+  const [activeProcessing, setActiveProcessing] = useState(0)
   const [uiActivities, setUiActivities] = useState<SimpleActivity[]>([])
   const acts = useActivities()
   useEffect(() => { acts.hydrate() }, [acts])
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear any ongoing processing when component unmounts
+      setProcessing(false)
+      setActiveProcessing(0)
+    }
+  }, [])
 
   const onFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files)
-    const items: QueueItem[] = arr.map((f) => ({
+    
+    // Filter out files that are too large or invalid
+    const validFiles = arr.filter(f => {
+      if (f.size > 100 * 1024 * 1024) return false // >100MB
+      if (f.size === 0) return false // Empty files
+      const ext = f.name.toLowerCase()
+      return ext.endsWith('.tcx') || ext.endsWith('.gpx')
+    })
+    
+    // Warn about rejected files
+    const rejectedCount = arr.length - validFiles.length
+    if (rejectedCount > 0) {
+      console.warn(`Rejected ${rejectedCount} files (too large, empty, or unsupported format)`)
+    }
+    
+    const items: QueueItem[] = validFiles.map((f) => ({
       id: `${f.name}-${f.size}-${f.lastModified}-${Math.random().toString(36).slice(2)}`,
       file: f,
       name: f.name,
@@ -36,7 +66,16 @@ export default function UploadPage() {
       status: 'pending',
       addedAt: Date.now(),
     }))
-    setQueue((prev) => [...prev, ...items])
+    
+    // Limit total queue size to prevent memory issues
+    setQueue((prev) => {
+      const newQueue = [...prev, ...items]
+      if (newQueue.length > 50) {
+        console.warn('Queue limited to 50 files. Oldest files removed.')
+        return newQueue.slice(-50)
+      }
+      return newQueue
+    })
   }, [])
 
   const onSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,36 +93,96 @@ export default function UploadPage() {
 
   const prevent = (e: React.DragEvent) => { e.preventDefault() }
 
+  const processItem = useCallback(async (item: QueueItem) => {
+    if (item.status !== 'pending') return
+    
+    // Check file size before processing
+    if (item.size > 100 * 1024 * 1024) { // 100MB hard limit
+      setQueue((prev) => prev.map(q => 
+        q.id === item.id 
+          ? { ...q, status: 'error', error: 'File too large (>100MB)' } 
+          : q
+      ))
+      return
+    }
+
+    setQueue((prev) => prev.map(q => 
+      q.id === item.id 
+        ? { ...q, status: 'parsing', progress: 0 } 
+        : q
+    ))
+    
+    const updateProgress = (progress: number) => {
+      setQueue((prev) => prev.map(q => 
+        q.id === item.id 
+          ? { ...q, progress } 
+          : q
+      ))
+    }
+
+    try {
+      if (item.ext === 'tcx') {
+        const parsed: TcxActivity[] = await parseTcx(item.file, updateProgress)
+        const mapped: SimpleActivity[] = parsed.map(a => ({ 
+          date: a.startTime, 
+          distance: a.distance || 0, 
+          duration: a.duration || 0, 
+          avgHr: a.avgHr, 
+          elevationGain: a.elevationGain 
+        }))
+        setUiActivities((prev) => [...prev, ...mapped])
+        acts.addActivities(mapped)
+      } else if (item.ext === 'gpx') {
+        const parsed = await parseGpx(item.file, updateProgress)
+        setUiActivities((prev) => [...prev, ...parsed])
+        acts.addActivities(parsed)
+      } else {
+        throw new Error('Unsupported file type')
+      }
+      
+      setQueue((prev) => prev.map(q => 
+        q.id === item.id 
+          ? { ...q, status: 'done', progress: 1 } 
+          : q
+      ))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setQueue((prev) => prev.map(q => 
+        q.id === item.id 
+          ? { ...q, status: 'error', error: msg, progress: 0 } 
+          : q
+      ))
+    }
+  }, [acts])
+
   const processQueue = useCallback(async () => {
     if (processing) return
     setProcessing(true)
+    
     try {
-      for (const item of queue) {
-        if (item.status !== 'pending') continue
-        setQueue((prev) => prev.map(q => q.id === item.id ? { ...q, status: 'parsing' } : q))
-        try {
-          if (item.ext === 'tcx') {
-            const parsed: TcxActivity[] = await parseTcx(item.file)
-            const mapped: SimpleActivity[] = parsed.map(a => ({ date: a.startTime, distance: a.distance || 0, duration: a.duration || 0, avgHr: a.avgHr, elevationGain: a.elevationGain }))
-            setUiActivities((prev) => [...prev, ...mapped])
-            acts.addActivities(mapped)
-          } else if (item.ext === 'gpx') {
-            const parsed = await parseGpx(item.file)
-            setUiActivities((prev) => [...prev, ...parsed])
-            acts.addActivities(parsed)
-          } else {
-            throw new Error('Unsupported file type')
-          }
-          setQueue((prev) => prev.map(q => q.id === item.id ? { ...q, status: 'done' } : q))
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err)
-          setQueue((prev) => prev.map(q => q.id === item.id ? { ...q, status: 'error', error: msg } : q))
+      const pendingItems = queue.filter(item => item.status === 'pending')
+      const batches = []
+      
+      // Process items in batches to limit concurrency
+      for (let i = 0; i < pendingItems.length; i += concurrentLimit) {
+        batches.push(pendingItems.slice(i, i + concurrentLimit))
+      }
+      
+      for (const batch of batches) {
+        setActiveProcessing(batch.length)
+        await Promise.all(batch.map(item => processItem(item)))
+        setActiveProcessing(0)
+        
+        // Small delay between batches to keep UI responsive
+        if (batch.length === concurrentLimit) {
+          await new Promise(resolve => setTimeout(resolve, 100))
         }
       }
     } finally {
       setProcessing(false)
+      setActiveProcessing(0)
     }
-  }, [acts, processing, queue])
+  }, [processing, queue, concurrentLimit, processItem])
 
   useEffect(() => {
     if (queue.some(q => q.status === 'pending') && !processing) {
@@ -99,7 +198,14 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Upload Activities (TCX / GPX)</h1>
+      {/* Hero Section */}
+      <HeroImage 
+        query="GPS watch running data athlete technology" 
+        className="h-40 rounded-2xl"
+      >
+        <h1 className="text-3xl font-bold mb-2">Upload Activities</h1>
+        <p className="text-lg opacity-90">Import your TCX and GPX files</p>
+      </HeroImage>
 
       <div className="grid lg:grid-cols-2 gap-4">
         <div>
@@ -107,15 +213,26 @@ export default function UploadPage() {
             onDrop={onDrop}
             onDragOver={prevent}
             onDragEnter={prevent}
-            className="rounded-2xl border border-dashed border-black/20 dark:border-white/20 bg-white/40 dark:bg-black/20 p-6 text-center"
+            className={`rounded-2xl border border-dashed transition-colors p-6 text-center ${
+              processing 
+                ? 'border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20' 
+                : 'border-black/20 dark:border-white/20 bg-white/40 dark:bg-black/20 hover:border-blue-300 dark:hover:border-blue-600'
+            }`}
           >
-            <p className="text-sm opacity-80">Drag and drop files here</p>
-            <p className="text-xs opacity-60">.tcx or .gpx — single or multiple</p>
+            <CloudArrowUpIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
+            <p className="text-sm opacity-80">
+              {processing ? 'Processing files...' : 'Drag and drop files here'}
+            </p>
+            <p className="text-xs opacity-60">
+              .tcx or .gpx — max 100MB, up to 50 files
+            </p>
             <div className="mt-4">
               <button
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => fileInputRef.current?.click()}
+                disabled={processing}
               >
+                <FolderOpenIcon className="w-4 h-4" />
                 Select files
               </button>
               <input
@@ -131,28 +248,79 @@ export default function UploadPage() {
 
           <div className="mt-4 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
             <div className="px-4 py-3 flex items-center justify-between">
-              <div className="text-sm opacity-80">Queue</div>
-              <div className="text-xs opacity-70">{completed}/{total} done{errors ? `, ${errors} errors` : ''}</div>
+              <div className="text-sm opacity-80">Queue {processing && `(${activeProcessing} active)`}</div>
+              <div className="text-xs opacity-70">
+                {completed}/{total} done{errors ? `, ${errors} errors` : ''}
+                {processing && (
+                  <span className="ml-2 inline-flex items-center">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                  </span>
+                )}
+              </div>
             </div>
             <ul className="max-h-56 overflow-auto divide-y divide-black/10 dark:divide-white/10">
               {queue.length === 0 && (
                 <li className="px-4 py-3 text-sm opacity-70">No files yet. Add or drop files to begin.</li>
               )}
               {queue.map((q) => (
-                <li key={q.id} className="px-4 py-3 text-sm flex items-center justify-between">
-                  <div className="truncate">
-                    <div className="truncate font-medium">{q.name}</div>
-                    <div className="text-xs opacity-70">{(q.size/1024).toFixed(1)} KB · {q.ext.toUpperCase()}</div>
-                    {q.error && <div className="text-xs text-red-600">{q.error}</div>}
+                <li key={q.id} className="px-4 py-3 text-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="truncate flex-1">
+                      <div className="truncate font-medium">{q.name}</div>
+                      <div className="text-xs opacity-70">{(q.size/1024/1024).toFixed(1)} MB · {q.ext.toUpperCase()}</div>
+                      {q.error && <div className="text-xs text-red-600 mt-1">{q.error}</div>}
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ml-2 ${
+                      q.status==='done'
+                        ?'bg-green-500/20 text-green-700 dark:text-green-300'
+                        :q.status==='parsing'
+                        ?'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300'
+                        :q.status==='error'
+                        ?'bg-red-500/20 text-red-700 dark:text-red-300'
+                        :'bg-black/10 dark:bg-white/10'
+                    }`}>
+                      {q.status === 'parsing' && q.progress !== undefined 
+                        ? `${Math.round(q.progress * 100)}%` 
+                        : q.status
+                      }
+                    </span>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${q.status==='done'?'bg-green-500/20 text-green-700 dark:text-green-300':q.status==='parsing'?'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300':q.status==='error'?'bg-red-500/20 text-red-700 dark:text-red-300':'bg-black/10 dark:bg-white/10'}`}>{q.status}</span>
+                  
+                  {/* Progress bar for parsing files */}
+                  {q.status === 'parsing' && q.progress !== undefined && (
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-2">
+                      <div 
+                        className="bg-yellow-500 h-1.5 rounded-full transition-all duration-300" 
+                        style={{ width: `${Math.max(q.progress * 100, 5)}%` }}
+                      />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
             {queue.length > 0 && (
               <div className="px-4 py-3 flex gap-2">
-                <button className="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10" onClick={() => setQueue([])}>Clear queue</button>
-                <button className="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10" onClick={() => setUiActivities([])}>Clear parsed</button>
+                <button 
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50" 
+                  onClick={() => setQueue([])} 
+                  disabled={processing}
+                >
+                  <TrashIcon className="w-3 h-3" />
+                  Clear queue
+                </button>
+                <button 
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5" 
+                  onClick={() => {
+                    setUiActivities([])
+                    // Force garbage collection hint if available
+                    if (typeof globalThis !== 'undefined' && 'gc' in globalThis && typeof (globalThis as { gc?: () => void }).gc === 'function') {
+                      setTimeout(() => (globalThis as { gc: () => void }).gc(), 100)
+                    }
+                  }}
+                >
+                  <TrashIcon className="w-3 h-3" />
+                  Clear parsed
+                </button>
               </div>
             )}
           </div>
@@ -160,7 +328,14 @@ export default function UploadPage() {
 
         <div className="space-y-4">
           <div className="rounded-xl border border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-black/30">
-            <h3 className="font-medium mb-2">Parsed Activities</h3>
+            <div className="flex items-center gap-3 mb-2">
+              <CardImage 
+                query="running activity data success" 
+                className="w-6 h-6 rounded object-cover" 
+                small={true} 
+              />
+              <h3 className="font-medium">Parsed Activities</h3>
+            </div>
             {uiActivities.length === 0 ? (
               <div className="text-sm opacity-70">No parsed activities yet.</div>
             ) : (
