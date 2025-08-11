@@ -25,7 +25,8 @@ function calculateZones(maxHR: number, restingHR: number): HeartRateZone[] {
         Math.round(restingHR + (hrReserve * 0.50)),
         Math.round(restingHR + (hrReserve * 0.60))
       ],
-      description: 'Very light intensity for recovery and warm-up'
+      description: 'Very light intensity for recovery and warm-up',
+      color: '#3B82F6'
     },
     {
       zone: 2,
@@ -35,7 +36,8 @@ function calculateZones(maxHR: number, restingHR: number): HeartRateZone[] {
         Math.round(restingHR + (hrReserve * 0.60)),
         Math.round(restingHR + (hrReserve * 0.70))
       ],
-      description: 'Easy conversational pace, builds aerobic base'
+      description: 'Easy conversational pace, builds aerobic base',
+      color: '#10B981'
     },
     {
       zone: 3,
@@ -45,7 +47,8 @@ function calculateZones(maxHR: number, restingHR: number): HeartRateZone[] {
         Math.round(restingHR + (hrReserve * 0.70)),
         Math.round(restingHR + (hrReserve * 0.80))
       ],
-      description: 'Moderate intensity, comfortably hard effort'
+      description: 'Moderate intensity, comfortably hard effort',
+      color: '#F59E0B'
     },
     {
       zone: 4,
@@ -55,7 +58,8 @@ function calculateZones(maxHR: number, restingHR: number): HeartRateZone[] {
         Math.round(restingHR + (hrReserve * 0.80)),
         Math.round(restingHR + (hrReserve * 0.90))
       ],
-      description: 'Hard intensity, sustainable for ~1 hour'
+      description: 'Hard intensity, sustainable for ~1 hour',
+      color: '#F97316'
     },
     {
       zone: 5,
@@ -65,7 +69,8 @@ function calculateZones(maxHR: number, restingHR: number): HeartRateZone[] {
         Math.round(restingHR + (hrReserve * 0.90)),
         maxHR
       ],
-      description: 'Very hard, maximum sustainable for 3-8 minutes'
+      description: 'Very hard, maximum sustainable for 3-8 minutes',
+      color: '#EF4444'
     }
   ]
 }
@@ -98,7 +103,8 @@ export default function HeartRateZones() {
     return {
       maxHR: maxHRValue,
       restingHR: restingNum,
-      zones: calculateZones(maxHRValue, restingNum)
+      zones: calculateZones(maxHRValue, restingNum),
+      lastUpdated: new Date().toISOString()
     }
   }, [age, restingHR, maxHR, useCustomMax])
 

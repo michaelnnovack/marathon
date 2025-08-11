@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { MapIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
-import type { SimpleActivity } from '@/store/activities'
+import type { SimpleActivity } from '@/types'
 import { CardImage } from './UnsplashImage'
 
 const RouteMap = dynamic(() => import('./RouteMap'), { ssr: false })

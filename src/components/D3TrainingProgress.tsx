@@ -15,7 +15,8 @@ const workoutColors: Record<WorkoutType, string> = {
   interval: '#EF4444',
   long: '#3B82F6',
   recovery: '#8B5CF6',
-  cross: '#6B7280'
+  cross: '#6B7280',
+  race: '#DC2626'
 }
 
 export default function D3TrainingProgress({ 

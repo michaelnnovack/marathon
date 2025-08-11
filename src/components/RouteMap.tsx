@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { TrackPoint } from '@/store/activities'
+import type { TrackPoint } from '@/types'
 
 // Fix Leaflet's default markers in React/Webpack environments
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl

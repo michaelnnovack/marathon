@@ -75,5 +75,13 @@ export function generatePlan(userId: string, todayISO: string, raceISO: string):
 
   const currentWeek = 0
   const focusAreas = ['Consistency', 'Injury prevention', 'Sleep & nutrition']
-  return { userId, weeks, currentWeek, focusAreas }
+  const now = new Date().toISOString()
+  return { 
+    userId, 
+    weeks, 
+    currentWeek, 
+    focusAreas,
+    createdAt: now,
+    updatedAt: now
+  }
 }

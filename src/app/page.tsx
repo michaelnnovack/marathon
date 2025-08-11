@@ -8,7 +8,9 @@ import { predictMarathonTime, formatHMS } from '@/utils/predict'
 import { TrashIcon, ExclamationTriangleIcon, CalendarDaysIcon, ChartBarIcon, CloudArrowUpIcon, TrophyIcon } from '@heroicons/react/24/outline'
 import { LoadingCard } from '@/components/LoadingSpinner'
 import { LazyChart } from '@/components/LazyChart'
-// import { HeroImage, CardImage } from '@/components/UnsplashImage'
+import { Card, CardHeader, CardContent, MetricCard } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { ErrorBoundaryWrapper } from '@/components/ErrorBoundary'
 import { HeroImage, CardImage } from '@/components/SimpleFallback'
 
 // Lazy load heavy components
@@ -321,7 +323,7 @@ export default function Home() {
       <div className="grid gap-6">
       
       {acts.list.length > 100 && (
-        <div className="rounded-2xl p-4 sm:p-6 border border-yellow-500/20 bg-yellow-500/10 text-yellow-800 dark:text-yellow-200">
+        <Card variant="outlined" className="border-yellow-500/20 bg-yellow-500/10 text-yellow-800 dark:text-yellow-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-start gap-3">
               <ExclamationTriangleIcon className="w-5 h-5 mt-0.5 flex-shrink-0" />
@@ -330,84 +332,84 @@ export default function Home() {
                 <p className="text-sm opacity-80">{acts.list.length} activities loaded. This may slow down the UI.</p>
               </div>
             </div>
-            <button 
+            <Button
+              variant="danger"
+              size="sm"
               onClick={clearAllData}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white text-sm whitespace-nowrap"
+              leftIcon={<TrashIcon className="w-4 h-4" />}
             >
-              <TrashIcon className="w-4 h-4" />
               Clear All Data
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {isLoading ? (
-          // Loading skeleton for metrics cards
-          Array.from({ length: 4 }).map((_, i) => (
-            <LoadingCard key={i} />
-          ))
-        ) : (
-          <>
-            <div className="rounded-2xl p-4 sm:p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
-              <div className="flex items-center gap-2 text-sm opacity-70 mb-1">
-                <CalendarDaysIcon className="w-4 h-4" />
-                Days to Race
-              </div>
-              <div className="text-2xl font-semibold">{daysToRace ?? '—'}</div>
-              {user?.raceDate && <div className="text-xs opacity-70 mt-1">Race day: {user.raceDate}</div>}
-            </div>
-            <div className="rounded-2xl p-4 sm:p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
-              <div className="flex items-center gap-2 text-sm opacity-70 mb-1">
-                <ChartBarIcon className="w-4 h-4" />
-                Last 7 Days
-              </div>
-              <div className="text-2xl font-semibold">{thisWeekKm.toFixed(1)} km</div>
-            </div>
-            <div className="rounded-2xl p-4 sm:p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
-              <div className="flex items-center gap-2 text-sm opacity-70 mb-1">
-                <ChartBarIcon className="w-4 h-4" />
-                Last 4 Weeks
-              </div>
-              <div className="text-2xl font-semibold">{last4WeeksKm.toFixed(1)} km</div>
-            </div>
-            <div className="rounded-2xl p-4 sm:p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
-              <div className="flex items-center gap-2 text-sm opacity-70 mb-1">
-                <CloudArrowUpIcon className="w-4 h-4" />
-                Activities Uploaded
-              </div>
-              <div className="text-2xl font-semibold">{workoutsLogged}</div>
-            </div>
-          </>
-        )}
-      </section>
+      <ErrorBoundaryWrapper componentName="MetricsSection">
+        <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title="Days to Race"
+            value={daysToRace ?? '—'}
+            subtitle={user?.raceDate ? `Race day: ${user.raceDate}` : undefined}
+            icon={<CalendarDaysIcon className="w-4 h-4" />}
+            loading={isLoading}
+          />
+          <MetricCard
+            title="Last 7 Days"
+            value={`${thisWeekKm.toFixed(1)} km`}
+            icon={<ChartBarIcon className="w-4 h-4" />}
+            loading={isLoading}
+          />
+          <MetricCard
+            title="Last 4 Weeks"
+            value={`${last4WeeksKm.toFixed(1)} km`}
+            icon={<ChartBarIcon className="w-4 h-4" />}
+            loading={isLoading}
+          />
+          <MetricCard
+            title="Activities Uploaded"
+            value={workoutsLogged}
+            icon={<CloudArrowUpIcon className="w-4 h-4" />}
+            loading={isLoading}
+          />
+        </section>
+      </ErrorBoundaryWrapper>
 
-      {/* Coach and Race Predictor - Same Line */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {isLoading ? (
-          <>
-            <LoadingCard />
-            <LoadingCard />
-          </>
-        ) : (
-          <>
-            <div className="rounded-2xl p-4 sm:p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
-              <div className="flex items-center gap-4 mb-4">
-                <CardImage 
-                  query="coach trainer motivation running" 
-                  className="w-16 h-16 rounded-full object-cover flex-shrink-0" 
-                  small={true} 
-                />
-                <h3 className="font-medium">Your Coach</h3>
-              </div>
-              <CoachCard />
-            </div>
-            <div>
-              <PredictorCard predSeconds={pred.seconds} goalTime={user?.goalTime} />
-            </div>
-          </>
-        )}
-      </section>
+      {/* Coach and Race Predictor */}
+      <ErrorBoundaryWrapper componentName="CoachPredictorSection">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {isLoading ? (
+            <>
+              <LoadingCard />
+              <LoadingCard />
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardHeader 
+                  icon={
+                    <CardImage 
+                      query="coach trainer motivation running" 
+                      className="w-8 h-8 rounded object-cover flex-shrink-0" 
+                      small={true} 
+                    />
+                  }
+                >
+                  Your Coach
+                </CardHeader>
+                <CardContent>
+                  <ErrorBoundaryWrapper componentName="CoachCard">
+                    <CoachCard />
+                  </ErrorBoundaryWrapper>
+                </CardContent>
+              </Card>
+              
+              <ErrorBoundaryWrapper componentName="PredictorCard">
+                <PredictorCard predSeconds={pred.seconds} goalTime={user?.goalTime} />
+              </ErrorBoundaryWrapper>
+            </>
+          )}
+        </section>
+      </ErrorBoundaryWrapper>
 
       {/* Weekly Mileage Chart - Only render if we have data */}
       {weekly.length > 0 && (

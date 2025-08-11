@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, lazy } from 'react'
 import { LoadingSkeleton } from './LoadingSpinner'
-import type { TrackPoint } from '@/store/activities'
+import type { TrackPoint } from '@/types'
 
 // Lazy load RouteMap component  
 const RouteMap = lazy(() => import('./RouteMap'))

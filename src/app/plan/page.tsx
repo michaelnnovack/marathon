@@ -8,13 +8,14 @@ import type { WorkoutType } from '@/types'
 import { HeroImage, CardImage } from '@/components/UnsplashImage'
 
 function getWorkoutTypeColor(type: WorkoutType) {
-  const colors = {
+  const colors: Record<WorkoutType, string> = {
     easy: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
     tempo: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
     interval: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
     long: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
     recovery: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    cross: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+    cross: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+    race: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400'
   }
   return colors[type] || colors.easy
 }
@@ -40,32 +41,34 @@ function formatDuration(minutes: number): string {
 
 function estimateDistance(type: WorkoutType, duration: number): string {
   // Rough estimates based on workout type and duration
-  const paceMultipliers = {
+  const paceMultipliers: Partial<Record<WorkoutType, number>> = {
     easy: 6.5, // min/km
     recovery: 7.0,
     tempo: 4.5,
     interval: 4.0, 
     long: 6.0,
-    cross: 0 // No distance for cross training
+    cross: 0, // No distance for cross training
+    race: 4.2
   }
   
   if (type === 'cross') return 'N/A'
   
-  const paceMinPerKm = paceMultipliers[type]
+  const paceMinPerKm = paceMultipliers[type] || 6.0
   const km = duration / paceMinPerKm
   return `${Math.round(km * 10) / 10}k`
 }
 
 function getWorkoutTypeImage(type: WorkoutType): string {
-  const queries = {
+  const queries: Record<WorkoutType, string> = {
     easy: 'easy running jogging relaxed',
     recovery: 'light jogging recovery walking',
     tempo: 'tempo running speed steady',
     interval: 'sprinting intervals track fast',
     long: 'long distance marathon endurance',
-    cross: 'cross training cycling swimming'
+    cross: 'cross training cycling swimming',
+    race: 'marathon race running competition'
   }
-  return queries[type]
+  return queries[type] || 'running workout training'
 }
 
 function formatDate(dateString: string): string {

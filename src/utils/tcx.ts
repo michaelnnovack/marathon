@@ -1,4 +1,4 @@
-import type { TrackPoint } from '@/store/activities'
+import type { TrackPoint } from '@/types'
 
 export interface Activity {
   startTime?: string

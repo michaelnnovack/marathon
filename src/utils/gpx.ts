@@ -1,4 +1,4 @@
-import type { SimpleActivity, TrackPoint } from '@/store/activities'
+import type { SimpleActivity, TrackPoint } from '@/types'
 
 // Helper function to yield control back to the UI
 function yieldToMain(): Promise<void> {

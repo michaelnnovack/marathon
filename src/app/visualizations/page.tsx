@@ -100,41 +100,47 @@ const sampleWorkouts: Workout[] = [
 const sampleHeartRateZones: HeartRateZones = {
   maxHR: 190,
   restingHR: 60,
+  lastUpdated: new Date().toISOString(),
   zones: [
     {
       zone: 1,
       name: 'Active Recovery',
       percentage: [50, 60],
       bpm: [125, 138],
-      description: 'Very light intensity for recovery and warm-up'
+      description: 'Very light intensity for recovery and warm-up',
+      color: '#3B82F6'
     },
     {
       zone: 2,
       name: 'Aerobic Base',
       percentage: [60, 70],
       bpm: [138, 151],
-      description: 'Easy conversational pace, builds aerobic base'
+      description: 'Easy conversational pace, builds aerobic base',
+      color: '#10B981'
     },
     {
       zone: 3,
       name: 'Aerobic',
       percentage: [70, 80],
       bpm: [151, 164],
-      description: 'Moderate intensity, comfortably hard effort'
+      description: 'Moderate intensity, comfortably hard effort',
+      color: '#F59E0B'
     },
     {
       zone: 4,
       name: 'Lactate Threshold',
       percentage: [80, 90],
       bpm: [164, 177],
-      description: 'Hard intensity, sustainable for ~1 hour'
+      description: 'Hard intensity, sustainable for ~1 hour',
+      color: '#F97316'
     },
     {
       zone: 5,
       name: 'VO2 Max',
       percentage: [90, 100],
       bpm: [177, 190],
-      description: 'Very hard, maximum sustainable for 3-8 minutes'
+      description: 'Very hard, maximum sustainable for 3-8 minutes',
+      color: '#EF4444'
     }
   ]
 }

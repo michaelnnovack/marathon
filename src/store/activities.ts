@@ -1,81 +1,179 @@
 import { create } from 'zustand'
-
-export interface TrackPoint {
-  lat: number
-  lng: number
-  elevation?: number
-  time?: string
-}
-
-export interface SimpleActivity {
-  date?: string
-  distance: number // meters
-  duration: number // seconds
-  avgHr?: number
-  elevationGain?: number
-  trackPoints?: TrackPoint[]
-}
-
-interface ActivitiesState {
-  list: SimpleActivity[]
-  addActivities: (as: SimpleActivity[]) => void
-  clear: () => void
-  hydrate: () => Promise<void>
-  isLoading: boolean
-}
+import type { ActivitiesState, SimpleActivity } from '@/types'
 
 const KEY = 'mt_activities'
 
-export const useActivities = create<ActivitiesState>((set, get) => ({
-  list: [],
-  isLoading: false,
-  addActivities: (as) => {
-    const next = [...get().list, ...as]
-    if (typeof window !== 'undefined') {
-      // Use RAF to prevent blocking the main thread during large saves
-      requestAnimationFrame(() => {
-        localStorage.setItem(KEY, JSON.stringify(next))
+export const useActivities = create<ActivitiesState>()((set, get) => ({
+    list: [],
+    isLoading: false,
+    error: undefined,
+    lastUpdated: undefined,
+    
+    addActivities: (activities) => {
+      const current = get().list
+      const next = [...current, ...activities]
+      
+      // Save to localStorage asynchronously to prevent blocking
+      if (typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          try {
+            localStorage.setItem(KEY, JSON.stringify(next))
+            set({ lastUpdated: new Date().toISOString(), error: undefined })
+          } catch (error) {
+            console.error('Failed to save activities:', error)
+            set({ error: 'Failed to save activities' })
+          }
+        })
+      }
+      
+      set({ list: next })
+    },
+
+    addActivity: (activity) => {
+      const current = get().list
+      const id = activity.id || crypto.randomUUID()
+      const next = [...current, { ...activity, id }]
+      
+      if (typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          try {
+            localStorage.setItem(KEY, JSON.stringify(next))
+            set({ lastUpdated: new Date().toISOString(), error: undefined })
+          } catch (error) {
+            console.error('Failed to save activity:', error)
+            set({ error: 'Failed to save activity' })
+          }
+        })
+      }
+      
+      set({ list: next })
+    },
+
+    updateActivity: (id, updates) => {
+      const current = get().list
+      const index = current.findIndex(a => a.id === id)
+      if (index === -1) return
+      
+      const next = [...current]
+      next[index] = { ...next[index], ...updates }
+      
+      if (typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          try {
+            localStorage.setItem(KEY, JSON.stringify(next))
+            set({ lastUpdated: new Date().toISOString(), error: undefined })
+          } catch (error) {
+            console.error('Failed to update activity:', error)
+            set({ error: 'Failed to update activity' })
+          }
+        })
+      }
+      
+      set({ list: next })
+    },
+
+    removeActivity: (id) => {
+      const current = get().list
+      const next = current.filter(a => a.id !== id)
+      
+      if (typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          try {
+            localStorage.setItem(KEY, JSON.stringify(next))
+            set({ lastUpdated: new Date().toISOString(), error: undefined })
+          } catch (error) {
+            console.error('Failed to remove activity:', error)
+            set({ error: 'Failed to remove activity' })
+          }
+        })
+      }
+      
+      set({ list: next })
+    },
+
+    getById: (id) => {
+      return get().list.find(a => a.id === id)
+    },
+
+    getByDateRange: (start, end) => {
+      const startDate = new Date(start)
+      const endDate = new Date(end)
+      
+      return get().list.filter(activity => {
+        if (!activity.date) return false
+        const activityDate = new Date(activity.date)
+        return activityDate >= startDate && activityDate <= endDate
+      })
+    },
+
+    clear: () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(KEY)
+      }
+      set({ 
+        list: [], 
+        error: undefined, 
+        lastUpdated: new Date().toISOString() 
+      })
+    },
+    hydrate: async () => {
+      if (typeof window === 'undefined') return Promise.resolve()
+      
+      set({ isLoading: true, error: undefined })
+      
+      return new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          try {
+            const raw = localStorage.getItem(KEY)
+            if (raw) {
+              const parsed = JSON.parse(raw)
+              
+              if (Array.isArray(parsed) && parsed.length > 5000) {
+                console.warn(`Too many activities (${parsed.length}), truncating to last 1000 for performance`)
+                const truncated = parsed.slice(-1000)
+                set({ 
+                  list: truncated, 
+                  isLoading: false,
+                  lastUpdated: new Date().toISOString(),
+                  error: undefined
+                })
+                // Update localStorage with truncated data asynchronously
+                setTimeout(() => {
+                  try {
+                    localStorage.setItem(KEY, JSON.stringify(truncated))
+                  } catch (error) {
+                    console.error('Failed to update localStorage:', error)
+                  }
+                }, 100)
+              } else {
+                set({ 
+                  list: parsed, 
+                  isLoading: false,
+                  lastUpdated: new Date().toISOString(),
+                  error: undefined
+                })
+              }
+            } else {
+              set({ 
+                list: [], 
+                isLoading: false,
+                lastUpdated: new Date().toISOString(),
+                error: undefined
+              })
+            }
+          } catch (error) {
+            console.error('Failed to hydrate activities:', error)
+            set({ 
+              list: [], 
+              isLoading: false, 
+              error: 'Failed to load activities' 
+            })
+          }
+          resolve()
+        })
       })
     }
-    set({ list: next })
-  },
-  clear: () => {
-    if (typeof window !== 'undefined') localStorage.removeItem(KEY)
-    set({ list: [] })
-  },
-  hydrate: async () => {
-    if (typeof window === 'undefined') return Promise.resolve()
-    
-    set({ isLoading: true })
-    
-    // Use RAF to prevent blocking the main thread
-    return new Promise<void>((resolve) => {
-      requestAnimationFrame(() => {
-        const raw = localStorage.getItem(KEY)
-        if (raw) {
-          try { 
-            const parsed = JSON.parse(raw)
-            // Safety limit to prevent browser freezing
-            if (Array.isArray(parsed) && parsed.length > 5000) {
-              console.warn(`Too many activities (${parsed.length}), truncating to last 1000 for performance`)
-              const truncated = parsed.slice(-1000)
-              set({ list: truncated, isLoading: false })
-              // Update localStorage with truncated data (async)
-              setTimeout(() => localStorage.setItem(KEY, JSON.stringify(truncated)), 100)
-            } else {
-              set({ list: parsed, isLoading: false })
-            }
-          } catch {
-            set({ isLoading: false })
-          }
-        } else {
-          set({ isLoading: false })
-        }
-        resolve()
-      })
-    })
-  },
-}))
+  }))
 
 export function weeklyMileageKm(list: SimpleActivity[]) {
   // Safety limit to prevent browser freezing
@@ -137,4 +235,49 @@ export function last7DaysMileageKm(list: SimpleActivity[]) {
 
 export function activitiesWithDatesCount(list: SimpleActivity[]) {
   return list.filter(a => a.date).length
+}
+
+// Optimized selectors for better performance
+export const activitiesSelectors = {
+  // Get recent activities (last N)
+  getRecent: (limit = 20) => (state: { list: SimpleActivity[] }) => 
+    state.list.slice(-limit),
+  
+  // Get activities with GPS data
+  getWithGPS: () => (state: { list: SimpleActivity[] }) =>
+    state.list.filter(a => a.trackPoints && a.trackPoints.length > 0),
+  
+  // Get activities by date range  
+  getByDateRange: (start: string, end: string) => (state: { list: SimpleActivity[] }) => {
+    const startDate = new Date(start)
+    const endDate = new Date(end)
+    return state.list.filter(activity => {
+      if (!activity.date) return false
+      const activityDate = new Date(activity.date)
+      return activityDate >= startDate && activityDate <= endDate
+    })
+  },
+  
+  // Get total stats
+  getTotalStats: () => (state: { list: SimpleActivity[] }) => {
+    const activities = state.list
+    return {
+      totalDistance: activities.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000, // km
+      totalDuration: activities.reduce((sum, a) => sum + (a.duration || 0), 0), // seconds
+      totalActivities: activities.length,
+      activitiesWithDates: activities.filter(a => a.date).length,
+      activitiesWithGPS: activities.filter(a => a.trackPoints && a.trackPoints.length > 0).length
+    }
+  },
+  
+  // Get performance optimized dashboard data
+  getDashboardData: () => (state: { list: SimpleActivity[] }) => {
+    const activities = state.list.slice(-100) // Only process last 100 for performance
+    return {
+      weekly: weeklyMileageKm(activities),
+      thisWeekKm: last7DaysMileageKm(activities),
+      totalActivities: state.list.length,
+      activitiesWithDates: activitiesWithDatesCount(state.list)
+    }
+  }
 }

@@ -1,4 +1,4 @@
-import type { SimpleActivity } from '@/store/activities'
+import type { SimpleActivity } from '@/types'
 
 // Convert any activity to an equivalent 10K time using Riegel scaling
 // T2 = T1 * (D2/D1)^1.06
