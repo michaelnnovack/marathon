@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, Suspense, lazy, useCallback, useRef } fro
 import { useUserStore } from '@/store/user'
 import { useActivities } from '@/store/activities'
 import { CheckIcon, CalendarIcon, ClockIcon, ArrowUturnLeftIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline'
-import { HeroImage } from '@/components/UnsplashImage'
+// Removed HeroImage import for clean design
 import { ErrorBoundaryWrapper } from '@/components/ErrorBoundary'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -170,14 +170,11 @@ export default function SetupPage() {
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
-      <HeroImage 
-        query="cartoon illustration runner preparation stretching planning goals" 
-        className="h-48 rounded-2xl"
-      >
+      {/* Header Section */}
+      <div className="text-center py-6">
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Training Setup</h1>
-        <p className="text-lg opacity-90">Configure your race goals and training zones</p>
-      </HeroImage>
+        <p className="text-lg opacity-70">Configure your race goals and training zones</p>
+      </div>
       
       {/* Race Configuration */}
       <Card>

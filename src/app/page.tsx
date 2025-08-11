@@ -11,7 +11,7 @@ import { LazyChart } from '@/components/LazyChart'
 import { Card, CardHeader, CardContent, MetricCard } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ErrorBoundaryWrapper } from '@/components/ErrorBoundary'
-import { HeroImage, CardImage } from '@/components/UnsplashImage'
+// Removed CardImage import for clean design
 
 // Lazy load heavy components
 import dynamic from 'next/dynamic'
@@ -305,19 +305,16 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      {/* Hero Section */}
-      <HeroImage 
-        query="cartoon illustration marathon runner training motivation dawn" 
-        className="h-48 rounded-2xl"
-      >
+      {/* Header Section */}
+      <div className="text-center py-8">
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Marathon Training</h1>
-        <p className="text-lg opacity-90">Your personal training companion</p>
+        <p className="text-lg opacity-70">Your personal training companion</p>
         {daysToRace && (
-          <p className="text-sm mt-2 opacity-80">
+          <p className="text-sm mt-2 opacity-60">
             {daysToRace} days until race day
           </p>
         )}
-      </HeroImage>
+      </div>
 
       <div className="grid gap-6">
       
@@ -384,15 +381,7 @@ export default function Home() {
           ) : (
             <>
               <Card>
-                <CardHeader 
-                  icon={
-                    <CardImage 
-                      query="cartoon illustration coach trainer motivation running" 
-                      className="w-8 h-8 rounded object-cover flex-shrink-0" 
-                      small={true} 
-                    />
-                  }
-                >
+                <CardHeader>
                   Your Coach
                 </CardHeader>
                 <CardContent>
@@ -415,11 +404,6 @@ export default function Home() {
         <section className="rounded-2xl p-6 border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <CardImage 
-                query="cartoon illustration running statistics chart progress" 
-                className="w-8 h-8 rounded object-cover" 
-                small={true} 
-              />
               <h3 className="font-medium">Weekly Mileage</h3>
             </div>
             <div className="text-xs opacity-70">Last {weekly.length} wks</div>

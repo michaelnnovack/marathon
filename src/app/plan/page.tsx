@@ -5,7 +5,7 @@ import { generatePlan } from '@/utils/plan'
 import { toISODate } from '@/utils/dates'
 import { CalendarDaysIcon, ClockIcon, MapPinIcon, TagIcon } from '@heroicons/react/24/outline'
 import type { WorkoutType } from '@/types'
-import { HeroImage, CardImage } from '@/components/UnsplashImage'
+// Removed CardImage import for clean design
 
 function getWorkoutTypeColor(type: WorkoutType) {
   const colors: Record<WorkoutType, string> = {
@@ -58,18 +58,7 @@ function estimateDistance(type: WorkoutType, duration: number): string {
   return `${Math.round(km * 10) / 10}k`
 }
 
-function getWorkoutTypeImage(type: WorkoutType): string {
-  const queries: Record<WorkoutType, string> = {
-    easy: 'cartoon illustration easy running jogging relaxed',
-    recovery: 'cartoon illustration light jogging recovery walking',
-    tempo: 'cartoon illustration tempo running speed steady',
-    interval: 'cartoon illustration sprinting intervals track fast',
-    long: 'cartoon illustration long distance marathon endurance',
-    cross: 'cartoon illustration cross training cycling swimming',
-    race: 'cartoon illustration marathon race running competition'
-  }
-  return queries[type] || 'running workout training'
-}
+// Removed getWorkoutTypeImage function - not needed for clean design
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
@@ -115,16 +104,13 @@ export default function PlanPage() {
   
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
-      <HeroImage 
-        query="cartoon illustration training schedule calendar runner planning" 
-        className="h-48 rounded-2xl"
-      >
+      {/* Header Section */}
+      <div className="text-center py-6">
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Training Calendar</h1>
-        <p className="text-lg opacity-90">
+        <p className="text-lg opacity-70">
           {plan.weeks.length} weeks to race day • Current phase: {plan.weeks[0]?.phase || 'base'}
         </p>
-      </HeroImage>
+      </div>
 
       {/* Calendar Grid */}
       <div className="space-y-8">
@@ -177,11 +163,6 @@ export default function PlanPage() {
 
                     {/* Workout Type Badge with Image */}
                     <div className="mb-3 flex items-center gap-2">
-                      <CardImage
-                        query={getWorkoutTypeImage(workout.type)}
-                        className="w-6 h-6 rounded object-cover flex-shrink-0"
-                        small={true}
-                      />
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getWorkoutTypeColor(workout.type)}`}>
                         <TagIcon className="w-3 h-3" />
                         {workout.type.charAt(0).toUpperCase() + workout.type.slice(1)}

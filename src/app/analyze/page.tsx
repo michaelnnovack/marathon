@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { HeroImage } from '@/components/UnsplashImage'
+// Removed HeroImage import for clean design
 import { useActivities } from '@/store/activities'
 import { useUserStore } from '@/store/user'
 import { ChartBarIcon, CalendarIcon, ClockIcon, MapIcon, ExclamationTriangleIcon, FireIcon } from '@heroicons/react/24/outline'
@@ -152,13 +152,10 @@ export default function AnalyzePage() {
   if (activities.length === 0) {
     return (
       <div className="space-y-8">
-        <HeroImage 
-          query="cartoon illustration running data analysis performance dashboard empty" 
-          className="h-48 rounded-2xl"
-        >
+        <div className="text-center py-6">
           <h1 className="text-3xl sm:text-4xl font-bold mb-2">Performance Analysis</h1>
-          <p className="text-lg opacity-90">Analyze your training data and track progress toward your goals</p>
-        </HeroImage>
+          <p className="text-lg opacity-70">Analyze your training data and track progress toward your goals</p>
+        </div>
 
         <Card>
           <CardContent className="text-center py-12">
@@ -178,16 +175,13 @@ export default function AnalyzePage() {
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
-      <HeroImage 
-        query="cartoon illustration running analytics performance data insights dashboard" 
-        className="h-48 rounded-2xl"
-      >
+      {/* Header Section */}
+      <div className="text-center py-6">
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Performance Analysis</h1>
-        <p className="text-lg opacity-90">
+        <p className="text-lg opacity-70">
           {analytics?.totalActivities} activities • {analytics?.totalDistance.toFixed(0)} km total
         </p>
-      </HeroImage>
+      </div>
 
       {/* Time Range Selector */}
       <Card>

@@ -7,7 +7,7 @@ import type { SimpleActivity } from '@/types'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { CloudArrowUpIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
 import ActivityCard from '@/components/ActivityCard'
-import { HeroImage, CardImage } from '@/components/UnsplashImage'
+// Removed CardImage import for clean design
 // import { HeroImage, CardImage } from '@/components/SimpleFallback'
 
 type QueueItem = {
@@ -217,14 +217,11 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero Section */}
-      <HeroImage 
-        query="cartoon illustration GPS watch running data athlete technology" 
-        className="h-40 rounded-2xl"
-      >
+      {/* Header Section */}
+      <div className="text-center py-6">
         <h1 className="text-3xl font-bold mb-2">Upload Activities</h1>
-        <p className="text-lg opacity-90">Import your TCX and GPX files</p>
-      </HeroImage>
+        <p className="text-lg opacity-70">Import your TCX and GPX files</p>
+      </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
         <div>
@@ -358,11 +355,6 @@ export default function UploadPage() {
         <div className="space-y-4">
           <div className="rounded-xl border border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-black/30">
             <div className="flex items-center gap-3 mb-2">
-              <CardImage 
-                query="cartoon illustration running activity data success" 
-                className="w-6 h-6 rounded object-cover" 
-                small={true} 
-              />
               <h3 className="font-medium">Parsed Activities</h3>
             </div>
             {uiActivities.length === 0 ? (
