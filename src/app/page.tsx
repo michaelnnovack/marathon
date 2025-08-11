@@ -6,7 +6,7 @@ import { useActivities, weeklyMileageKm, last7DaysMileageKm, activitiesWithDates
 import { useProgress } from '@/store/progress'
 import { predictMarathonTime, formatHMS } from '@/utils/predict'
 import { TrashIcon, ExclamationTriangleIcon, CalendarDaysIcon, ChartBarIcon, CloudArrowUpIcon, TrophyIcon } from '@heroicons/react/24/outline'
-import { LoadingCard, LoadingSkeleton } from '@/components/LoadingSpinner'
+import { LoadingCard } from '@/components/LoadingSpinner'
 import { LazyChart } from '@/components/LazyChart'
 // import { HeroImage, CardImage } from '@/components/UnsplashImage'
 import { HeroImage, CardImage } from '@/components/SimpleFallback'
@@ -55,7 +55,7 @@ const CoachCard = React.memo(function CoachCard() {
       pred: prediction, 
       ach: achievementMsg 
     }
-  }, [user?.raceDate, activities.length, mounted]) // Only depend on length
+  }, [user?.raceDate, activities, mounted]) // Include activities dependency
 
   if (!mounted) {
     return <p className="text-sm opacity-80">Loading coach advice...</p>
@@ -77,8 +77,17 @@ const CoachCard = React.memo(function CoachCard() {
 })
 
 // Cache for dashboard calculations to prevent recalculations
+interface DashboardCacheData {
+  weekly: Array<{ week: string; km: number }>;
+  thisWeekKm: number;
+  last4WeeksKm: number;
+  pred: { seconds: number; ci: number };
+  workoutsLogged: number;
+  isLoading: boolean;
+}
+
 let dashboardCache: {
-  data: any;
+  data: DashboardCacheData;
   checksum: string;
   timestamp: number;
 } | null = null;
@@ -117,7 +126,7 @@ function useDashboardData() {
       mounted = false
       clearTimeout(timer)
     }
-  }, []) // Remove dependencies to prevent re-runs
+  }, [hydrateUser, activities, progress]) // Include all dependencies
 
   const daysToRace = useMemo(() => {
     if (!user?.raceDate) return undefined
@@ -192,7 +201,7 @@ function useDashboardData() {
       dashboardCache = { data: result, checksum, timestamp: now }
       return result
     }
-  }, [activities.list.length, isClientSide]) // Only depend on length, not full array
+  }, [activities.list, isClientSide]) // Include full activities.list dependency
 
   const { weekly, thisWeekKm, last4WeeksKm, pred, workoutsLogged, isLoading } = dashboardMetrics
 
