@@ -3,8 +3,21 @@ import React, { useMemo } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts'
 import { Card, CardContent, CardHeader } from './ui/Card'
 import { Badge } from './ui/Badge'
-import { ClockIcon, HeartIcon, MapIcon, TrophyIcon, ChartBarIcon } from '@heroicons/react/24/outline'
-import type { TCXAnalysis, KilometerSplit, HeartRateZoneTime } from '@/utils/tcx-analyzer'
+import { HeartIcon, MapIcon, TrophyIcon, ChartBarIcon } from '@heroicons/react/24/outline'
+import type { TCXAnalysis } from '@/utils/tcx-analyzer'
+
+interface TooltipPayload {
+  color: string
+  dataKey: string
+  value: number
+  name: string
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: TooltipPayload[]
+  label?: string | number
+}
 import { formatPace, formatTime } from '@/utils/tcx-analyzer'
 
 interface TCXAnalysisReportProps {
@@ -16,7 +29,7 @@ export default function TCXAnalysisReport({ analysis, targetMarathonPace }: TCXA
   
   // Prepare chart data
   const splitsChartData = useMemo(() => {
-    return analysis.kilometerSplits.map((split, index) => ({
+    return analysis.kilometerSplits.map((split) => ({
       km: split.km,
       pace: split.pace,
       paceSeconds: split.pace * 60,
@@ -52,12 +65,12 @@ export default function TCXAnalysisReport({ analysis, targetMarathonPace }: TCXA
     }
   }, [analysis])
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-3 shadow-lg">
           <p className="font-semibold">Km {label}</p>
-          {payload.map((entry: any, index: number) => (
+          {payload.map((entry, index) => (
             <p key={index} style={{ color: entry.color }}>
               {entry.dataKey === 'paceSeconds' ? 
                 `Pace: ${formatPace(entry.value / 60)}` :
@@ -270,7 +283,7 @@ export default function TCXAnalysisReport({ analysis, targetMarathonPace }: TCXA
                     <XAxis dataKey="zone" />
                     <YAxis label={{ value: 'Time (min)', angle: -90, position: 'insideLeft' }} />
                     <Tooltip 
-                      formatter={(value, name) => [
+                      formatter={(value) => [
                         `${Math.round(Number(value))} min`, 
                         'Time'
                       ]}

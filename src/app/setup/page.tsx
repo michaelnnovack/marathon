@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, Suspense, lazy, useCallback, useRef } from 'react'
 import { useUserStore } from '@/store/user'
 import { useActivities } from '@/store/activities'
-import { CheckIcon, CalendarIcon, ClockIcon, ArrowUturnLeftIcon, CloudArrowUpIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
+import { CheckIcon, CalendarIcon, ClockIcon, ArrowUturnLeftIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline'
 import { HeroImage } from '@/components/SimpleFallback'
 import { ErrorBoundaryWrapper } from '@/components/ErrorBoundary'
 import { Card } from '@/components/ui/Card'

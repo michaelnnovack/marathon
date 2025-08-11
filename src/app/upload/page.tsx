@@ -33,7 +33,8 @@ export default function UploadPage() {
   const [activeProcessing, setActiveProcessing] = useState(0)
   const [uiActivities, setUiActivities] = useState<SimpleActivity[]>([])
   const acts = useActivities()
-  useEffect(() => { acts.hydrate() }, [acts.hydrate])
+  const actsHydrate = useActivities((s) => s.hydrate)
+  useEffect(() => { actsHydrate() }, [actsHydrate])
   
   // Cleanup on unmount
   useEffect(() => {

@@ -101,7 +101,7 @@ function useDashboardData() {
   const hydrateUser = useUserStore((s) => s.hydrate)
   const activities = useActivities((s) => s.list.slice(-100)) // Only take last 100 activities for performance
   const activitiesHydrate = useActivities((s) => s.hydrate)
-  const progress = useProgress()
+  const progressHydrate = useProgress((s) => s.hydrate)
   const [isClientSide, setIsClientSide] = useState(false)
 
   // Single hydration effect with debouncing
@@ -114,7 +114,7 @@ function useDashboardData() {
       Promise.all([
         hydrateUser(),
         activitiesHydrate(),
-        progress.hydrate()
+        progressHydrate()
       ]).then(() => {
         if (mounted) setIsClientSide(true)
       }).catch(() => {
@@ -126,7 +126,7 @@ function useDashboardData() {
       mounted = false
       clearTimeout(timer)
     }
-  }, [hydrateUser, activitiesHydrate, progress.hydrate]) // Include all dependencies
+  }, [hydrateUser, activitiesHydrate, progressHydrate]) // Include all dependencies
 
   const daysToRace = useMemo(() => {
     if (!user?.raceDate) return undefined

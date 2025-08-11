@@ -104,19 +104,6 @@ function calculateGrade(elevationGain: number, distance: number): number {
   return (elevationGain / distance) * 100
 }
 
-/**
- * Estimate grade-adjusted pace using a simplified model
- * Uphill: +10s per km per 1% grade, Downhill: -5s per km per 1% grade
- */
-function gradeAdjustPace(paceSeconds: number, grade: number): number {
-  if (grade > 0) {
-    // Uphill - add time
-    return paceSeconds + (grade * 10)
-  } else {
-    // Downhill - subtract time (but less benefit)
-    return paceSeconds + (grade * 5) // grade is negative, so this subtracts
-  }
-}
 
 /**
  * Calculate heart rate zones based on max HR
@@ -135,7 +122,7 @@ function calculateHRZones(maxHR: number): Array<{zone: number, name: string, min
  * Estimate Training Stress Score (TSS) from heart rate and duration
  * Simplified model based on HR zones and time
  */
-function calculateTSS(heartRateZones: HeartRateZoneTime[], durationHours: number): number {
+function calculateTSS(heartRateZones: HeartRateZoneTime[]): number {
   const zoneMultipliers = [0.5, 0.65, 0.8, 1.0, 1.2] // TSS multiplier for each zone
   
   let totalTSS = 0
@@ -340,7 +327,7 @@ export async function analyzeTCX(file: File, targetMarathonPace?: number): Promi
   const paceCV = kilometerSplits.length > 0 ? 
     Math.sqrt(kilometerSplits.reduce((sum, split) => sum + Math.pow(split.pace - avgPace, 2), 0) / kilometerSplits.length) / avgPace : 0
   
-  const estimatedTSS = calculateTSS(heartRateZones, totalDuration / 3600)
+  const estimatedTSS = calculateTSS(heartRateZones)
   
   // Generate marathon insights
   const marathonInsights = generateMarathonInsights({

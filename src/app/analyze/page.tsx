@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -10,14 +10,12 @@ import { ChartBarIcon, CalendarIcon, ClockIcon, MapIcon, ExclamationTriangleIcon
 import { formatTime, formatPace } from '@/utils/tcx-analyzer'
 import { weeklyMileageKm, last7DaysMileageKm } from '@/store/activities'
 import Link from 'next/link'
-import type { SimpleActivity } from '@/types'
 
 export default function AnalyzePage() {
   const activities = useActivities((s) => s.list)
   const user = useUserStore((s) => s.user)
   const hydrateActivities = useActivities((s) => s.hydrate)
   
-  const [selectedActivity, setSelectedActivity] = useState<SimpleActivity | null>(null)
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d')
 
   useEffect(() => {
@@ -304,7 +302,7 @@ export default function AnalyzePage() {
               
               <div className="flex items-center justify-between">
                 <span>Recent Progress</span>
-                <Badge variant={insights.progressTrend.isImproving ? 'success' : insights.progressTrend.improvement < -0.1 ? 'error' : 'default'}>
+                <Badge variant={insights.progressTrend.isImproving ? 'success' : insights.progressTrend.improvement < -0.1 ? 'danger' : 'default'}>
                   {insights.progressTrend.isImproving ? 'Improving' : 
                    insights.progressTrend.improvement < -0.1 ? 'Declining' : 'Stable'}
                 </Badge>
