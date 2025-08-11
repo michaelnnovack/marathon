@@ -1,6 +1,6 @@
-import DayClient from './DayClient'
+import EnhancedDayClient from './EnhancedDayClient'
 
 export default async function DayPage({ params }: { params: Promise<{ date: string }> }) {
   const { date } = await params
-  return <DayClient date={decodeURIComponent(date)} />
+  return <EnhancedDayClient date={decodeURIComponent(date)} />
 }

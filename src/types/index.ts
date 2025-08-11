@@ -1,10 +1,51 @@
 // Core User Types
+export type UserLevel = 'beginner' | 'intermediate' | 'advanced'
+export type TrainingFocus = 'speed' | 'endurance' | 'strength' | 'recovery'
+
+export interface UserPreferences {
+  units: 'metric' | 'imperial'
+  theme: 'light' | 'dark' | 'auto'
+  notifications: {
+    workoutReminders: boolean
+    achievementAlerts: boolean
+    weeklyReports: boolean
+  }
+  privacy: {
+    shareProgress: boolean
+    publicProfile: boolean
+  }
+}
+
+export interface UserStats {
+  totalDistance: number // meters
+  totalWorkouts: number
+  totalDuration: number // seconds
+  averagePace: number // meters per second
+  bestMarathonTime?: number // seconds
+  currentStreak: number // consecutive days
+  longestStreak: number // consecutive days
+  lastActivityDate?: string // ISO date
+}
+
 export interface User {
   id: string
   name: string
+  email?: string
+  avatar?: string
   raceDate?: string // ISO date string
   goalTime?: string // HH:MM:SS
+  level: UserLevel
+  trainingFocus: TrainingFocus[]
   currentFitness?: number // arbitrary scale 0-100
+  maxHeartRate?: number
+  restingHeartRate?: number
+  weight?: number // kg
+  height?: number // cm
+  dateOfBirth?: string // ISO date
+  preferences: UserPreferences
+  stats: UserStats
+  createdAt: string
+  updatedAt: string
 }
 
 // Activity & Training Types
@@ -168,12 +209,43 @@ export interface GeolocationBounds {
   west: number
 }
 
+// Achievement Types
+export type AchievementType = 'distance' | 'streak' | 'pace' | 'consistency' | 'milestone'
+
+export interface Achievement {
+  id: string
+  type: AchievementType
+  title: string
+  description: string
+  icon: string
+  threshold: number
+  unit?: string
+  unlockedAt?: string // ISO date
+  progress: number // 0-1
+  category: 'bronze' | 'silver' | 'gold' | 'platinum'
+}
+
+export interface PersonalRecord {
+  id: string
+  type: 'fastest_5k' | 'fastest_10k' | 'fastest_half_marathon' | 'fastest_marathon' | 'longest_run' | 'most_elevation'
+  value: number
+  unit: string
+  date: string // ISO date
+  activityId?: string
+  previousRecord?: number
+}
+
 // Store State Types
 export interface UserState extends LoadingState {
   user: User | null
+  achievements: Achievement[]
+  personalRecords: PersonalRecord[]
   hydrate: () => Promise<void>
   setUser: (user: User) => void
   updateUser: (updates: Partial<User>) => void
+  updatePreferences: (preferences: Partial<UserPreferences>) => void
+  addAchievement: (achievement: Achievement) => void
+  updatePersonalRecord: (record: PersonalRecord) => void
   clearUser: () => void
 }
 
