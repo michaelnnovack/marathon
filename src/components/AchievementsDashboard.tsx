@@ -6,6 +6,7 @@ import { checkAchievements, calculateAchievementProgress, getMotivationalMessage
 import AchievementCard from './AchievementCard'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { TrophyIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import type { SimpleActivity } from '@/types'
 
 interface AchievementsDashboardProps {
   variant?: 'full' | 'compact'
@@ -198,7 +199,7 @@ function calculateCurrentStreak(activities: SimpleActivity[]): number {
   // Sort activities by date (most recent first)
   const sortedActivities = activities
     .filter(a => a.date)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
   
   if (sortedActivities.length === 0) return 0
   
@@ -207,7 +208,7 @@ function calculateCurrentStreak(activities: SimpleActivity[]): number {
   const oneDayMs = 24 * 60 * 60 * 1000
   
   // Check if there's an activity today or yesterday
-  const mostRecentDate = new Date(sortedActivities[0].date)
+  const mostRecentDate = new Date(sortedActivities[0].date!)
   const daysSinceRecent = Math.floor((today.getTime() - mostRecentDate.getTime()) / oneDayMs)
   
   if (daysSinceRecent > 1) {

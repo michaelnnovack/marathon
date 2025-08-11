@@ -3,7 +3,7 @@ import { memo } from 'react'
 import { Achievement } from '@/types'
 import { Card } from '@/components/ui/Card'
 import { Progress } from '@/components/ui/Progress'
-import { TrophyIcon, LockClosedIcon } from '@heroicons/react/24/outline'
+import { TrophyIcon } from '@heroicons/react/24/outline'
 
 interface AchievementCardProps {
   achievement: Achievement

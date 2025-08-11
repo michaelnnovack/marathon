@@ -2,7 +2,7 @@
 import { memo } from 'react'
 import { UserCircleIcon, CogIcon, TrophyIcon, ChartBarIcon } from '@heroicons/react/24/outline'
 import { UserProfile } from '@/store/user'
-import { Card } from '@/components/ui/Card'
+import Image from 'next/image'
 
 interface ProfileCardProps {
   user: UserProfile
@@ -23,12 +23,6 @@ const ProfileCard = memo<ProfileCardProps>(({ user, isActive, onClick, showStats
     return km > 100 ? `${Math.round(km)}km` : `${km.toFixed(1)}km`
   }
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
-  }
-
   return (
     <div
       className={`transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02] rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30 ${
@@ -44,9 +38,11 @@ const ProfileCard = memo<ProfileCardProps>(({ user, isActive, onClick, showStats
           <div className="flex items-center gap-3">
             <div className="relative">
               {user.avatar ? (
-                <img 
+                <Image 
                   src={user.avatar} 
                   alt={user.name}
+                  width={48}
+                  height={48}
                   className="w-12 h-12 rounded-full object-cover"
                 />
               ) : (

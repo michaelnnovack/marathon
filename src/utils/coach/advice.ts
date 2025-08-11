@@ -1,4 +1,4 @@
-import type { SimpleActivity, UserLevel } from '@/types'
+import type { SimpleActivity } from '@/types'
 import type { UserProfile } from '@/store/user'
 
 export interface CoachingAdvice {
@@ -29,16 +29,14 @@ export function getCoachingAdvice(
   activities: SimpleActivity[],
   weeksToRace: number
 ): CoachingAdvice {
-  const recentActivities = activities.slice(-14) // Last 14 activities
   const weeklyKm = activities.slice(-7).reduce((sum, a) => sum + ((a.distance || 0) / 1000), 0)
-  const monthlyKm = activities.slice(-28).reduce((sum, a) => sum + ((a.distance || 0) / 1000), 0)
   
   const advice: CoachingAdvice = {
     weeklyFocus: weeklyFocus(weeksToRace),
     motivation: getMotivation(user, activities),
     tips: getPersonalizedTips(user, activities, weeklyKm),
     nextGoals: getNextGoals(user, activities),
-    warnings: getTrainingWarnings(activities, weeklyKm, monthlyKm)
+    warnings: getTrainingWarnings(activities, weeklyKm)
   }
   
   return advice
@@ -65,7 +63,6 @@ function getMotivation(user: UserProfile, activities: SimpleActivity[]): string 
 
 function getPersonalizedTips(user: UserProfile, activities: SimpleActivity[], weeklyKm: number): string[] {
   const tips: string[] = []
-  const avgPace = activities.length > 0 ? activities.reduce((sum, a) => sum + (a.avgPace || 0), 0) / activities.length : 0
   const hasHeartRateData = activities.some(a => a.avgHr && a.avgHr > 0)
   
   // Level-specific tips
@@ -136,7 +133,7 @@ function getNextGoals(user: UserProfile, activities: SimpleActivity[]): string[]
   return goals.slice(0, 2) // Limit to top 2 goals
 }
 
-function getTrainingWarnings(activities: SimpleActivity[], weeklyKm: number, monthlyKm: number): string[] {
+function getTrainingWarnings(activities: SimpleActivity[], weeklyKm: number): string[] {
   const warnings: string[] = []
   const recentRuns = activities.slice(-7)
   

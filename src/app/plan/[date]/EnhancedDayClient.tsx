@@ -8,7 +8,6 @@ import { useProgress } from '@/store/progress'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Progress } from '@/components/ui/Progress'
 import { 
   CheckIcon, 
   ArrowLeftIcon, 
