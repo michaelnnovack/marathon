@@ -1,10 +1,8 @@
 import { create } from 'zustand'
 import type { User, UserPreferences, UserStats, Achievement, PersonalRecord } from '@/types'
 
-type UserId = 'michael' | 'sara'
-
 export interface UserProfile extends User {
-  id: UserId
+  id: 'michael'
 }
 
 // Default preferences
@@ -38,7 +36,6 @@ interface UserState {
   personalRecords: PersonalRecord[]
   isLoading: boolean
   error: string | null
-  setUser: (u: UserProfile | null) => void
   updateUser: (updates: Partial<UserProfile>) => void
   updatePreferences: (preferences: Partial<UserPreferences>) => void
   updateStats: (stats: Partial<UserStats>) => void
@@ -50,11 +47,11 @@ interface UserState {
   clearError: () => void
 }
 
-const createDefaultUser = (id: UserId, name: string): UserProfile => {
+const createMichaelUser = (): UserProfile => {
   const now = new Date().toISOString()
   return {
-    id,
-    name,
+    id: 'michael',
+    name: 'Michael',
     level: 'beginner',
     trainingFocus: ['endurance'],
     preferences: { ...defaultPreferences },
@@ -64,10 +61,7 @@ const createDefaultUser = (id: UserId, name: string): UserProfile => {
   }
 }
 
-const defaultUsers: Record<UserId, UserProfile> = {
-  michael: createDefaultUser('michael', 'Michael'),
-  sara: createDefaultUser('sara', 'Sara')
-}
+const defaultUser: UserProfile = createMichaelUser()
 
 const persist = (u: UserProfile | null) => {
   if (typeof window === 'undefined') return
@@ -96,11 +90,6 @@ export const useUserStore = create<UserState>((set, get) => ({
   isLoading: false,
   error: null,
   
-  setUser: (u) => {
-    persist(u)
-    set({ user: u, error: null })
-  },
-  
   updateUser: (updates) => {
     const currentUser = get().user
     if (!currentUser) return
@@ -110,16 +99,34 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ user: updatedUser, error: null })
   },
   
-  updatePreferences: (preferences) => {
+  updatePreferences: async (preferences) => {
     const currentUser = get().user
     if (!currentUser) return
     
+    const updatedPreferences = { ...currentUser.preferences, ...preferences }
     const updatedUser = {
       ...currentUser,
-      preferences: { ...currentUser.preferences, ...preferences }
+      preferences: updatedPreferences
     }
-    persist(updatedUser)
-    set({ user: updatedUser, error: null })
+    
+    try {
+      // Try to store in database if available
+      if (typeof window !== 'undefined') {
+        const dbModule = await import('@/lib/database/queries').catch(() => null)
+        if (dbModule) {
+          await dbModule.storeUserPreferences(updatedPreferences)
+        }
+      }
+      
+      // Also persist to localStorage as backup
+      persist(updatedUser)
+      set({ user: updatedUser, error: null })
+    } catch (error) {
+      console.error('Failed to update preferences in database:', error)
+      // Still update in memory and localStorage
+      persist(updatedUser)
+      set({ user: updatedUser, error: 'Preferences updated locally only' })
+    }
   },
   
   updateStats: (stats) => {
@@ -180,19 +187,21 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ isLoading: true })
     
     try {
-      // Load user
+      // Load user - always use Michael
       const userRaw = localStorage.getItem('mt_user')
       let user: UserProfile
       
       if (userRaw) {
         const parsed = JSON.parse(userRaw) as UserProfile
-        // Migrate old user data
+        // Migrate old user data but force to Michael
         user = {
-          ...createDefaultUser(parsed.id, parsed.name),
-          ...parsed
+          ...defaultUser,
+          ...parsed,
+          id: 'michael',
+          name: 'Michael'
         }
       } else {
-        user = defaultUsers.michael
+        user = defaultUser
         localStorage.setItem('mt_user', JSON.stringify(user))
       }
       
@@ -213,7 +222,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       })
     } catch (error) {
       console.error('Failed to hydrate user store:', error)
-      const michael = defaultUsers.michael
+      const michael = defaultUser
       localStorage.setItem('mt_user', JSON.stringify(michael))
       set({ 
         user: michael, 
@@ -226,5 +235,5 @@ export const useUserStore = create<UserState>((set, get) => ({
   }
 }))
 
-export const users = Object.values(defaultUsers)
-export type { UserId }
+// Remove users export since we only have Michael now
+// export type { UserId } - no longer needed

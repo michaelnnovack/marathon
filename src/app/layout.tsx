@@ -4,9 +4,14 @@ import "./globals.css";
 import Link from "next/link";
 import Image from "next/image";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { UserSelector } from "@/components/UserSelector";
 import { RaceCountdown } from "@/components/RaceCountdown";
-import { HomeIcon, Cog6ToothIcon, CalendarIcon, ChartBarIcon } from "@heroicons/react/24/outline";
+import { 
+  HomeIcon, 
+  MapIcon, 
+  ChartBarIcon, 
+  ClockIcon, 
+  CogIcon 
+} from "@heroicons/react/24/outline";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,47 +50,54 @@ export default function RootLayout({
                 <Image src="/Running.png" alt="Running" width={36} height={36} className="sm:w-[54px] sm:h-[54px]" />
                 <span className="hidden xs:inline sm:inline">Marathon</span>
               </Link>
-              <nav className="hidden md:flex items-center gap-4 lg:gap-6 text-sm">
-                <Link href="/" className="flex items-center gap-1.5 hover:underline">
+              <nav className="hidden md:flex items-center gap-6 text-sm">
+                <Link href="/" className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                   <HomeIcon className="w-4 h-4" />
-                  Dashboard
+                  <span className="font-medium">Coach</span>
                 </Link>
-                <Link href="/plan" className="flex items-center gap-1.5 hover:underline">
-                  <CalendarIcon className="w-4 h-4" />
-                  Plan
+                <Link href="/runs" className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <MapIcon className="w-4 h-4" />
+                  <span>Runs</span>
                 </Link>
-                <Link href="/analyze" className="flex items-center gap-1.5 hover:underline">
+                <Link href="/progress" className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                   <ChartBarIcon className="w-4 h-4" />
-                  Analyze
+                  <span>Progress</span>
                 </Link>
-                <Link href="/setup" className="flex items-center gap-1.5 hover:underline">
-                  <Cog6ToothIcon className="w-4 h-4" />
-                  Setup
+                <Link href="/schedule" className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <ClockIcon className="w-4 h-4" />
+                  <span>Schedule</span>
+                </Link>
+                <Link href="/settings" className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors opacity-70">
+                  <CogIcon className="w-4 h-4" />
+                  <span>Settings</span>
                 </Link>
               </nav>
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="text-xs sm:text-sm hidden sm:block opacity-80"><RaceCountdown /></div>
-                <div className="scale-90 sm:scale-100"><UserSelector /></div>
                 <ThemeToggle />
               </div>
             </div>
             <nav className="md:hidden border-t border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/20">
-              <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-4 text-sm overflow-x-auto">
-                <Link href="/" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
-                  <HomeIcon className="w-4 h-4" />
-                  Dashboard
+              <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-5 gap-2 text-xs">
+                <Link href="/" className="flex flex-col items-center gap-1 py-2 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <HomeIcon className="w-5 h-5" />
+                  <span className="font-medium">Coach</span>
                 </Link>
-                <Link href="/plan" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
-                  <CalendarIcon className="w-4 h-4" />
-                  Plan
+                <Link href="/runs" className="flex flex-col items-center gap-1 py-2 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <MapIcon className="w-5 h-5" />
+                  <span>Runs</span>
                 </Link>
-                <Link href="/analyze" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
-                  <ChartBarIcon className="w-4 h-4" />
-                  Analyze
+                <Link href="/progress" className="flex flex-col items-center gap-1 py-2 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <ChartBarIcon className="w-5 h-5" />
+                  <span>Progress</span>
                 </Link>
-                <Link href="/setup" className="flex items-center gap-1.5 hover:underline whitespace-nowrap">
-                  <Cog6ToothIcon className="w-4 h-4" />
-                  Setup
+                <Link href="/schedule" className="flex flex-col items-center gap-1 py-2 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <ClockIcon className="w-5 h-5" />
+                  <span>Schedule</span>
+                </Link>
+                <Link href="/settings" className="flex flex-col items-center gap-1 py-2 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors opacity-70">
+                  <CogIcon className="w-5 h-5" />
+                  <span>Settings</span>
                 </Link>
               </div>
             </nav>

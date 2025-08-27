@@ -1,0 +1,433 @@
+import { getDatabase } from './index'
+import { upsertActivities, storeUserPreferences } from './queries'
+import type { SimpleActivity, UserPreferences } from '@/types'
+
+/**
+ * Migration system to move from localStorage to SQLite
+ * 
+ * Handles:
+ * - Activities from intervals.icu cache
+ * - User preferences and settings
+ * - Achievement data
+ * - Personal records
+ * - Legacy data cleanup
+ */
+
+export interface MigrationResult {
+  success: boolean
+  migratedData: {
+    activities: number
+    userPreferences: boolean
+    achievements: number
+    personalRecords: number
+  }
+  errors: string[]
+  warnings: string[]
+}
+
+/**
+ * Main migration function - moves all localStorage data to SQLite
+ */
+export async function migrateFromLocalStorage(): Promise<MigrationResult> {
+  const result: MigrationResult = {
+    success: false,
+    migratedData: {
+      activities: 0,
+      userPreferences: false,
+      achievements: 0,
+      personalRecords: 0
+    },
+    errors: [],
+    warnings: []
+  }
+
+  try {
+    console.log('Starting migration from localStorage to SQLite...')
+
+    // Ensure database is initialized
+    await getDatabase()
+
+    // Migrate activities
+    await migrateActivities(result)
+
+    // Migrate user preferences
+    await migrateUserPreferences(result)
+
+    // Migrate achievements
+    await migrateAchievements(result)
+
+    // Migrate personal records
+    await migratePersonalRecords(result)
+
+    // Clean up old localStorage keys after successful migration
+    if (result.errors.length === 0) {
+      cleanupOldLocalStorage(result)
+      result.success = true
+      console.log('Migration completed successfully')
+    } else {
+      console.warn('Migration completed with errors:', result.errors)
+    }
+
+  } catch (error) {
+    result.errors.push(`Migration failed: ${error}`)
+    console.error('Migration failed:', error)
+  }
+
+  return result
+}
+
+/**
+ * Migrate activities from localStorage cache
+ */
+async function migrateActivities(result: MigrationResult): Promise<void> {
+  try {
+    console.log('Migrating activities...')
+
+    // Check for intervals.icu activities in localStorage
+    const activitiesJson = localStorage.getItem('mt_activities')
+    if (!activitiesJson) {
+      result.warnings.push('No activities found in localStorage')
+      return
+    }
+
+    const activities: SimpleActivity[] = JSON.parse(activitiesJson)
+    if (!Array.isArray(activities) || activities.length === 0) {
+      result.warnings.push('Activities data is empty or invalid')
+      return
+    }
+
+    console.log(`Found ${activities.length} activities to migrate`)
+
+    // Transform activities to database format
+    const dbActivities = activities.map(activity => ({
+      ...activity,
+      id: activity.id || `migrated_${Date.now()}_${Math.random()}`,
+      source: 'intervals_icu',
+      synced_at: new Date().toISOString(),
+      // Estimate training stress score if not available
+      training_stress_score: estimateTrainingStressScore(activity),
+      intensity_factor: estimateIntensityFactor(activity)
+    }))
+
+    // Batch insert activities
+    const insertResult = await upsertActivities(dbActivities)
+    
+    result.migratedData.activities = insertResult.inserted + insertResult.updated
+    
+    if (insertResult.errors.length > 0) {
+      result.errors.push(...insertResult.errors)
+    }
+
+    console.log(`Migrated ${result.migratedData.activities} activities (${insertResult.inserted} new, ${insertResult.updated} updated)`)
+
+  } catch (error) {
+    result.errors.push(`Activity migration failed: ${error}`)
+  }
+}
+
+/**
+ * Migrate user preferences
+ */
+async function migrateUserPreferences(result: MigrationResult): Promise<void> {
+  try {
+    console.log('Migrating user preferences...')
+
+    const userJson = localStorage.getItem('mt_user')
+    if (!userJson) {
+      result.warnings.push('No user preferences found in localStorage')
+      return
+    }
+
+    const userData = JSON.parse(userJson)
+    if (!userData.preferences) {
+      result.warnings.push('User data has no preferences section')
+      return
+    }
+
+    const preferences: UserPreferences = userData.preferences
+
+    // Store preferences in database
+    await storeUserPreferences(preferences)
+    
+    result.migratedData.userPreferences = true
+    console.log('User preferences migrated successfully')
+
+  } catch (error) {
+    result.errors.push(`User preferences migration failed: ${error}`)
+  }
+}
+
+/**
+ * Migrate achievements from localStorage
+ */
+async function migrateAchievements(result: MigrationResult): Promise<void> {
+  try {
+    console.log('Migrating achievements...')
+
+    const achievementsJson = localStorage.getItem('mt_achievements')
+    if (!achievementsJson) {
+      result.warnings.push('No achievements found in localStorage')
+      return
+    }
+
+    const achievements = JSON.parse(achievementsJson)
+    if (!Array.isArray(achievements)) {
+      result.warnings.push('Achievements data is not an array')
+      return
+    }
+
+    // For now, we'll store achievements in a simple table
+    // This could be expanded to the full achievements system later
+    const db = await getDatabase()
+
+    const insertStmt = db.prepare(`
+      INSERT OR REPLACE INTO user_preferences (
+        user_id, created_at, updated_at
+      ) VALUES ('michael', datetime('now'), datetime('now'))
+      ON CONFLICT(user_id) DO UPDATE SET
+        updated_at = datetime('now')
+    `)
+
+    try {
+      // Just mark that we have achievements data
+      // Full achievement system would require its own tables
+      result.migratedData.achievements = achievements.length
+      result.warnings.push(`Found ${achievements.length} achievements (full migration pending implementation)`)
+      console.log(`Found ${achievements.length} achievements for future migration`)
+    } finally {
+      insertStmt.free()
+    }
+
+  } catch (error) {
+    result.errors.push(`Achievements migration failed: ${error}`)
+  }
+}
+
+/**
+ * Migrate personal records
+ */
+async function migratePersonalRecords(result: MigrationResult): Promise<void> {
+  try {
+    console.log('Migrating personal records...')
+
+    const recordsJson = localStorage.getItem('mt_personal_records')
+    if (!recordsJson) {
+      result.warnings.push('No personal records found in localStorage')
+      return
+    }
+
+    const records = JSON.parse(recordsJson)
+    if (!Array.isArray(records)) {
+      result.warnings.push('Personal records data is not an array')
+      return
+    }
+
+    // Similar to achievements, this would need full implementation
+    result.migratedData.personalRecords = records.length
+    result.warnings.push(`Found ${records.length} personal records (full migration pending implementation)`)
+    console.log(`Found ${records.length} personal records for future migration`)
+
+  } catch (error) {
+    result.errors.push(`Personal records migration failed: ${error}`)
+  }
+}
+
+/**
+ * Clean up old localStorage keys after successful migration
+ */
+function cleanupOldLocalStorage(result: MigrationResult): void {
+  const keysToRemove = [
+    'mt_activities_old',
+    'mt_uploaded_activities',
+    'mt_manual_activities'
+  ]
+
+  // Keep the current intervals.icu cache as backup
+  // 'mt_activities' - keep this for now
+  // 'mt_user' - keep this for now
+  // 'mt_achievements' - keep this for now
+  // 'mt_personal_records' - keep this for now
+
+  let cleanedKeys = 0
+  keysToRemove.forEach(key => {
+    if (localStorage.getItem(key)) {
+      localStorage.removeItem(key)
+      cleanedKeys++
+    }
+  })
+
+  if (cleanedKeys > 0) {
+    result.warnings.push(`Cleaned up ${cleanedKeys} old localStorage keys`)
+    console.log(`Cleaned up ${cleanedKeys} old localStorage keys`)
+  }
+}
+
+/**
+ * Estimate Training Stress Score for activities without it
+ */
+function estimateTrainingStressScore(activity: SimpleActivity): number {
+  if (!activity.duration) return 0
+
+  // Simple TSS estimation based on duration and intensity
+  const durationHours = activity.duration / 3600
+  
+  // Estimate intensity factor from heart rate or pace
+  let intensityFactor = 0.7 // Default moderate intensity
+
+  if (activity.avgHr && activity.avgHr > 100) {
+    // Assume max HR around 170 for estimation
+    intensityFactor = Math.min(activity.avgHr / 170, 1.0)
+  } else if (activity.avgPace && activity.avgPace > 0) {
+    // Faster pace = higher intensity (rough estimation)
+    // This is very approximate and would need proper pace zones
+    const paceMinPerKm = 1000 / activity.avgPace / 60
+    if (paceMinPerKm < 4.0) intensityFactor = 0.9      // Fast
+    else if (paceMinPerKm < 5.0) intensityFactor = 0.8 // Moderate-fast  
+    else if (paceMinPerKm < 6.0) intensityFactor = 0.7 // Moderate
+    else intensityFactor = 0.6                         // Easy
+  }
+
+  // TSS = (duration in hours) * (IF^2) * 100
+  return durationHours * intensityFactor * intensityFactor * 100
+}
+
+/**
+ * Estimate Intensity Factor for activities
+ */
+function estimateIntensityFactor(activity: SimpleActivity): number {
+  if (activity.avgHr && activity.avgHr > 100) {
+    // Heart rate based estimation
+    return Math.min(activity.avgHr / 170, 1.0)
+  }
+  
+  if (activity.avgPace && activity.avgPace > 0) {
+    // Pace based estimation
+    const paceMinPerKm = 1000 / activity.avgPace / 60
+    if (paceMinPerKm < 4.0) return 0.9
+    else if (paceMinPerKm < 5.0) return 0.8
+    else if (paceMinPerKm < 6.0) return 0.7
+    else return 0.6
+  }
+
+  // Default moderate intensity
+  return 0.7
+}
+
+/**
+ * Check if migration is needed
+ */
+export async function isMigrationNeeded(): Promise<boolean> {
+  try {
+    // Check if we have localStorage data
+    const hasActivities = !!localStorage.getItem('mt_activities')
+    const hasUser = !!localStorage.getItem('mt_user')
+
+    if (!hasActivities && !hasUser) {
+      return false // No data to migrate
+    }
+
+    // Check if database already has data
+    const db = await getDatabase()
+    
+    const result = db.exec(`
+      SELECT COUNT(*) as count FROM activities WHERE user_id = 'michael'
+    `)
+
+    const activityCount = result.length > 0 && result[0].values.length > 0 
+      ? result[0].values[0][0] as number 
+      : 0
+
+    // If localStorage has data but database is empty, migration is needed
+    return hasActivities && activityCount === 0
+
+  } catch (error) {
+    console.warn('Could not check migration status:', error)
+    return false
+  }
+}
+
+/**
+ * Get migration status for UI display
+ */
+export async function getMigrationStatus(): Promise<{
+  needed: boolean
+  localStorageData: {
+    activities: number
+    hasUserPreferences: boolean
+    achievements: number
+    personalRecords: number
+  }
+  databaseData: {
+    activities: number
+    hasPreferences: boolean
+  }
+}> {
+  const status = {
+    needed: false,
+    localStorageData: {
+      activities: 0,
+      hasUserPreferences: false,
+      achievements: 0,
+      personalRecords: 0
+    },
+    databaseData: {
+      activities: 0,
+      hasPreferences: false
+    }
+  }
+
+  try {
+    // Check localStorage
+    const activitiesJson = localStorage.getItem('mt_activities')
+    if (activitiesJson) {
+      const activities = JSON.parse(activitiesJson)
+      status.localStorageData.activities = Array.isArray(activities) ? activities.length : 0
+    }
+
+    const userJson = localStorage.getItem('mt_user')
+    status.localStorageData.hasUserPreferences = !!userJson
+
+    const achievementsJson = localStorage.getItem('mt_achievements')
+    if (achievementsJson) {
+      const achievements = JSON.parse(achievementsJson)
+      status.localStorageData.achievements = Array.isArray(achievements) ? achievements.length : 0
+    }
+
+    const recordsJson = localStorage.getItem('mt_personal_records')
+    if (recordsJson) {
+      const records = JSON.parse(recordsJson)
+      status.localStorageData.personalRecords = Array.isArray(records) ? records.length : 0
+    }
+
+    // Check database
+    const db = await getDatabase()
+    
+    const activitiesResult = db.exec(`
+      SELECT COUNT(*) as count FROM activities WHERE user_id = 'michael'
+    `)
+    
+    if (activitiesResult.length > 0 && activitiesResult[0].values.length > 0) {
+      status.databaseData.activities = activitiesResult[0].values[0][0] as number
+    }
+
+    const prefsResult = db.exec(`
+      SELECT COUNT(*) as count FROM user_preferences WHERE user_id = 'michael'
+    `)
+    
+    if (prefsResult.length > 0 && prefsResult[0].values.length > 0) {
+      status.databaseData.hasPreferences = prefsResult[0].values[0][0] as number > 0
+    }
+
+    // Migration needed if localStorage has data but database doesn't
+    status.needed = (
+      status.localStorageData.activities > 0 && status.databaseData.activities === 0
+    ) || (
+      status.localStorageData.hasUserPreferences && !status.databaseData.hasPreferences
+    )
+
+  } catch (error) {
+    console.error('Failed to get migration status:', error)
+  }
+
+  return status
+}

@@ -89,7 +89,7 @@ export default function PlanPage() {
           <p className="text-lg font-medium mb-2">Training Plan Not Available</p>
           <p className="text-sm opacity-70 mb-4">Set your race date to generate your personalized training plan</p>
           <Link 
-            href="/setup" 
+            href="/settings" 
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
           >
             Go to Setup

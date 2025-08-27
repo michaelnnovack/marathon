@@ -1,0 +1,689 @@
+import { Database } from 'sql.js'
+import { getDatabase } from './index'
+import type { SimpleActivity, UserPreferences, Achievement, PersonalRecord } from '@/types'
+
+/**
+ * Database service layer with optimized queries for coaching functionality
+ * 
+ * Key Performance Features:
+ * - Prepared statements for repeated queries
+ * - Batch operations for bulk inserts
+ * - Optimized indexes for fast lookups
+ * - View-based queries for complex calculations
+ */
+
+// ===== ACTIVITY QUERIES =====
+
+export interface DBActivity extends SimpleActivity {
+  training_stress_score?: number
+  intensity_factor?: number
+  coaching_notes?: string
+  perceived_exertion?: number
+  weather_conditions?: string
+  terrain?: string
+  source?: string
+  external_id?: string
+  synced_at?: string
+}
+
+/**
+ * Insert or update activities (handles intervals.icu sync)
+ */
+export async function upsertActivities(activities: DBActivity[]): Promise<{
+  inserted: number
+  updated: number
+  errors: string[]
+}> {
+  const db = await getDatabase()
+  const results = { inserted: 0, updated: 0, errors: [] as string[] }
+
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO activities (
+      id, date, distance, duration, avg_hr, max_hr, elevation_gain, calories, avg_pace, type,
+      training_stress_score, intensity_factor, coaching_notes, perceived_exertion,
+      weather_conditions, terrain, track_points, source, external_id, synced_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  try {
+    db.exec('BEGIN TRANSACTION')
+
+    for (const activity of activities) {
+      try {
+        const wasExisting = getActivityById(activity.id || '')
+        
+        insertStmt.run([
+          activity.id || `activity_${Date.now()}_${Math.random()}`,
+          activity.date,
+          activity.distance,
+          activity.duration,
+          activity.avgHr || null,
+          activity.maxHr || null,
+          activity.elevationGain || null,
+          activity.calories || null,
+          activity.avgPace || null,
+          activity.type || 'easy',
+          activity.training_stress_score || null,
+          activity.intensity_factor || null,
+          activity.coaching_notes || null,
+          activity.perceived_exertion || null,
+          activity.weather_conditions || null,
+          activity.terrain || null,
+          activity.trackPoints ? JSON.stringify(activity.trackPoints) : null,
+          activity.source || 'manual',
+          activity.external_id || null,
+          activity.synced_at || new Date().toISOString()
+        ])
+
+        if (wasExisting) {
+          results.updated++
+        } else {
+          results.inserted++
+        }
+      } catch (error) {
+        results.errors.push(`Activity ${activity.id}: ${error}`)
+      }
+    }
+
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    results.errors.push(`Transaction failed: ${error}`)
+  } finally {
+    insertStmt.free()
+  }
+
+  return results
+}
+
+/**
+ * Get activities with pagination and filtering
+ */
+export async function getActivities(params: {
+  limit?: number
+  offset?: number
+  startDate?: string
+  endDate?: string
+  type?: string[]
+  source?: string
+}): Promise<DBActivity[]> {
+  const db = await getDatabase()
+  
+  let query = `
+    SELECT * FROM activities 
+    WHERE user_id = 'michael'
+  `
+  const bindings: any[] = []
+
+  if (params.startDate) {
+    query += ' AND date >= ?'
+    bindings.push(params.startDate)
+  }
+
+  if (params.endDate) {
+    query += ' AND date <= ?'
+    bindings.push(params.endDate)
+  }
+
+  if (params.type && params.type.length > 0) {
+    query += ` AND type IN (${params.type.map(() => '?').join(', ')})`
+    bindings.push(...params.type)
+  }
+
+  if (params.source) {
+    query += ' AND source = ?'
+    bindings.push(params.source)
+  }
+
+  query += ' ORDER BY date DESC'
+
+  if (params.limit) {
+    query += ' LIMIT ?'
+    bindings.push(params.limit)
+
+    if (params.offset) {
+      query += ' OFFSET ?'
+      bindings.push(params.offset)
+    }
+  }
+
+  const result = db.exec(query, bindings)
+  return formatActivitiesResult(result)
+}
+
+/**
+ * Get activity by ID
+ */
+export async function getActivityById(id: string): Promise<DBActivity | null> {
+  const db = await getDatabase()
+  
+  const result = db.exec(
+    'SELECT * FROM activities WHERE id = ? AND user_id = ?',
+    [id, 'michael']
+  )
+
+  const activities = formatActivitiesResult(result)
+  return activities.length > 0 ? activities[0] : null
+}
+
+/**
+ * Get recent activities (optimized query using view)
+ */
+export async function getRecentActivities(limit = 50): Promise<SimpleActivity[]> {
+  const db = await getDatabase()
+  
+  const result = db.exec(
+    'SELECT * FROM recent_activities LIMIT ?',
+    [limit]
+  )
+
+  return formatActivitiesResult(result)
+}
+
+/**
+ * Format SQL result into activities
+ */
+function formatActivitiesResult(result: any[]): DBActivity[] {
+  if (result.length === 0) return []
+  
+  const columns = result[0].columns as string[]
+  const values = result[0].values as any[][]
+
+  return values.map(row => {
+    const activity: any = {}
+    columns.forEach((col, idx) => {
+      const value = row[idx]
+      
+      // Handle JSON fields
+      if (col === 'track_points' && value) {
+        try {
+          activity.trackPoints = JSON.parse(value as string)
+        } catch {
+          activity.trackPoints = []
+        }
+      } else {
+        // Convert snake_case to camelCase for consistency
+        const camelKey = col.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+        activity[camelKey] = value
+      }
+    })
+    
+    return activity as DBActivity
+  })
+}
+
+// ===== FITNESS METRICS QUERIES =====
+
+export interface FitnessMetrics {
+  date: string
+  chronic_training_load: number
+  acute_training_load: number
+  training_stress_balance: number
+  daily_training_stress: number
+  daily_duration: number
+  daily_distance: number
+  fitness_level?: number
+  fatigue_level?: number
+  form_level?: number
+}
+
+/**
+ * Calculate and store fitness metrics (CTL/ATL/TSB)
+ */
+export async function calculateAndStoreFitnessMetrics(
+  startDate: string,
+  endDate: string
+): Promise<void> {
+  const db = await getDatabase()
+  
+  // Get activities for the date range
+  const activities = await getActivities({ startDate, endDate })
+  
+  // Calculate daily TSS and other metrics
+  const dailyMetrics = new Map<string, {
+    tss: number
+    duration: number
+    distance: number
+  }>()
+
+  for (const activity of activities) {
+    const date = activity.date?.split('T')[0] || ''
+    if (!date) continue
+
+    const existing = dailyMetrics.get(date) || { tss: 0, duration: 0, distance: 0 }
+    
+    // Simple TSS calculation: duration in hours * relative intensity
+    // This is a simplified version - real TSS requires power/HR zones
+    const durationHours = (activity.duration || 0) / 3600
+    const relativeIntensity = activity.intensity_factor || 
+      (activity.avgHr ? Math.min(activity.avgHr / 170, 1.0) : 0.7) // Assume ~170 max HR
+    const activityTSS = durationHours * relativeIntensity * relativeIntensity * 100
+
+    existing.tss += activityTSS
+    existing.duration += activity.duration || 0
+    existing.distance += activity.distance || 0
+    
+    dailyMetrics.set(date, existing)
+  }
+
+  // Calculate CTL/ATL using exponential moving averages
+  const fitnessData: FitnessMetrics[] = []
+  let ctl = 0 // 42-day exponential average
+  let atl = 0 // 7-day exponential average
+
+  const ctlAlpha = 2 / (42 + 1) // Smoothing factor for CTL
+  const atlAlpha = 2 / (7 + 1)  // Smoothing factor for ATL
+
+  const dates = Array.from(dailyMetrics.keys()).sort()
+  
+  for (const date of dates) {
+    const daily = dailyMetrics.get(date)!
+    
+    // Update exponential moving averages
+    ctl = (daily.tss * ctlAlpha) + (ctl * (1 - ctlAlpha))
+    atl = (daily.tss * atlAlpha) + (atl * (1 - atlAlpha))
+    
+    const tsb = ctl - atl // Training Stress Balance
+
+    fitnessData.push({
+      date,
+      chronic_training_load: ctl,
+      acute_training_load: atl,
+      training_stress_balance: tsb,
+      daily_training_stress: daily.tss,
+      daily_duration: daily.duration,
+      daily_distance: daily.distance,
+      fitness_level: Math.min(ctl, 100), // Scale to 0-100
+      fatigue_level: Math.min(atl, 100),
+      form_level: Math.max(Math.min(tsb, 50), -50) // Scale TSB to +/-50
+    })
+  }
+
+  // Batch insert fitness metrics
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO fitness_metrics (
+      date, chronic_training_load, acute_training_load, training_stress_balance,
+      daily_training_stress, daily_duration, daily_distance,
+      fitness_level, fatigue_level, form_level
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  try {
+    db.exec('BEGIN TRANSACTION')
+
+    for (const metrics of fitnessData) {
+      insertStmt.run([
+        metrics.date,
+        metrics.chronic_training_load,
+        metrics.acute_training_load,
+        metrics.training_stress_balance,
+        metrics.daily_training_stress,
+        metrics.daily_duration,
+        metrics.daily_distance,
+        metrics.fitness_level,
+        metrics.fatigue_level,
+        metrics.form_level
+      ])
+    }
+
+    db.exec('COMMIT')
+    console.log(`Calculated fitness metrics for ${fitnessData.length} days`)
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw new Error(`Failed to store fitness metrics: ${error}`)
+  } finally {
+    insertStmt.free()
+  }
+}
+
+/**
+ * Get fitness metrics for date range
+ */
+export async function getFitnessMetrics(
+  startDate: string,
+  endDate: string
+): Promise<FitnessMetrics[]> {
+  const db = await getDatabase()
+
+  const result = db.exec(`
+    SELECT * FROM fitness_metrics
+    WHERE user_id = 'michael' AND date BETWEEN ? AND ?
+    ORDER BY date ASC
+  `, [startDate, endDate])
+
+  if (result.length === 0) return []
+
+  const columns = result[0].columns as string[]
+  const values = result[0].values as any[][]
+
+  return values.map(row => {
+    const metrics: any = {}
+    columns.forEach((col, idx) => {
+      metrics[col] = row[idx]
+    })
+    return metrics as FitnessMetrics
+  })
+}
+
+/**
+ * Get current fitness state (latest metrics)
+ */
+export async function getCurrentFitnessState(): Promise<FitnessMetrics | null> {
+  const db = await getDatabase()
+
+  const result = db.exec(`
+    SELECT * FROM fitness_metrics
+    WHERE user_id = 'michael'
+    ORDER BY date DESC
+    LIMIT 1
+  `)
+
+  if (result.length === 0 || result[0].values.length === 0) return null
+
+  const columns = result[0].columns as string[]
+  const values = result[0].values[0] as any[]
+
+  const metrics: any = {}
+  columns.forEach((col, idx) => {
+    metrics[col] = values[idx]
+  })
+
+  return metrics as FitnessMetrics
+}
+
+// ===== COACH RECOMMENDATIONS QUERIES =====
+
+export interface CoachRecommendation {
+  id: string
+  date: string
+  workout_type: string
+  distance_target?: number
+  duration_target?: number
+  pace_target?: number
+  hr_zone_target?: number
+  recommendation_reason: string
+  confidence_score: number
+  fitness_readiness?: number
+  fatigue_factor?: number
+  completed: boolean
+  actual_activity_id?: string
+  adherence_score?: number
+}
+
+/**
+ * Store coach recommendation
+ */
+export async function storeCoachRecommendation(
+  recommendation: Omit<CoachRecommendation, 'id'>
+): Promise<string> {
+  const db = await getDatabase()
+  
+  const id = `coach_${recommendation.date}_${Date.now()}`
+
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO coach_recommendations (
+      id, date, workout_type, distance_target, duration_target, pace_target,
+      hr_zone_target, recommendation_reason, confidence_score,
+      fitness_readiness, fatigue_factor, completed
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  try {
+    insertStmt.run([
+      id,
+      recommendation.date,
+      recommendation.workout_type,
+      recommendation.distance_target || null,
+      recommendation.duration_target || null,
+      recommendation.pace_target || null,
+      recommendation.hr_zone_target || null,
+      recommendation.recommendation_reason,
+      recommendation.confidence_score,
+      recommendation.fitness_readiness || null,
+      recommendation.fatigue_factor || null,
+      recommendation.completed ? 1 : 0
+    ])
+
+    return id
+  } finally {
+    insertStmt.free()
+  }
+}
+
+/**
+ * Get coach recommendations for date range
+ */
+export async function getCoachRecommendations(
+  startDate: string,
+  endDate: string
+): Promise<CoachRecommendation[]> {
+  const db = await getDatabase()
+
+  const result = db.exec(`
+    SELECT * FROM coach_recommendations
+    WHERE user_id = 'michael' AND date BETWEEN ? AND ?
+    ORDER BY date DESC
+  `, [startDate, endDate])
+
+  return formatCoachRecommendationsResult(result)
+}
+
+/**
+ * Mark recommendation as completed
+ */
+export async function completeCoachRecommendation(
+  recommendationId: string,
+  activityId: string,
+  adherenceScore: number,
+  notes?: string
+): Promise<void> {
+  const db = await getDatabase()
+
+  const updateStmt = db.prepare(`
+    UPDATE coach_recommendations 
+    SET completed = 1, actual_activity_id = ?, adherence_score = ?, completion_notes = ?
+    WHERE id = ?
+  `)
+
+  try {
+    updateStmt.run([activityId, adherenceScore, notes || null, recommendationId])
+  } finally {
+    updateStmt.free()
+  }
+}
+
+function formatCoachRecommendationsResult(result: any[]): CoachRecommendation[] {
+  if (result.length === 0) return []
+
+  const columns = result[0].columns as string[]
+  const values = result[0].values as any[][]
+
+  return values.map(row => {
+    const rec: any = {}
+    columns.forEach((col, idx) => {
+      rec[col] = row[idx]
+    })
+    return rec as CoachRecommendation
+  })
+}
+
+// ===== PERFORMANCE ANALYTICS QUERIES =====
+
+/**
+ * Get weekly training summary (using optimized view)
+ */
+export async function getWeeklyFitnessSummary(weeks = 12): Promise<any[]> {
+  const db = await getDatabase()
+
+  const result = db.exec(`
+    SELECT * FROM weekly_fitness_summary
+    LIMIT ?
+  `, [weeks])
+
+  if (result.length === 0) return []
+
+  const columns = result[0].columns as string[]
+  const values = result[0].values as any[][]
+
+  return values.map(row => {
+    const summary: any = {}
+    columns.forEach((col, idx) => {
+      summary[col] = row[idx]
+    })
+    return summary
+  })
+}
+
+/**
+ * Get coaching adherence summary
+ */
+export async function getCoachingAdherence(weeks = 12): Promise<any[]> {
+  const db = await getDatabase()
+
+  const result = db.exec(`
+    SELECT * FROM coaching_adherence
+    LIMIT ?
+  `, [weeks])
+
+  if (result.length === 0) return []
+
+  const columns = result[0].columns as string[]
+  const values = result[0].values as any[][]
+
+  return values.map(row => {
+    const adherence: any = {}
+    columns.forEach((col, idx) => {
+      adherence[col] = row[idx]
+    })
+    return adherence
+  })
+}
+
+/**
+ * Get activity count by type for coaching insights
+ */
+export async function getActivityTypeDistribution(days = 90): Promise<{
+  type: string
+  count: number
+  total_distance: number
+  avg_duration: number
+}[]> {
+  const db = await getDatabase()
+
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - days)
+
+  const result = db.exec(`
+    SELECT 
+      type,
+      COUNT(*) as count,
+      SUM(distance) as total_distance,
+      AVG(duration) as avg_duration
+    FROM activities
+    WHERE user_id = 'michael' AND date >= ?
+    GROUP BY type
+    ORDER BY count DESC
+  `, [cutoffDate.toISOString().split('T')[0]])
+
+  if (result.length === 0) return []
+
+  const columns = result[0].columns as string[]
+  const values = result[0].values as any[][]
+
+  return values.map(row => {
+    const dist: any = {}
+    columns.forEach((col, idx) => {
+      dist[col] = row[idx]
+    })
+    return dist
+  })
+}
+
+// ===== USER PREFERENCES QUERIES =====
+
+/**
+ * Get or create user preferences
+ */
+export async function getUserPreferences(): Promise<UserPreferences> {
+  const db = await getDatabase()
+
+  const result = db.exec(`
+    SELECT * FROM user_preferences 
+    WHERE user_id = 'michael'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `)
+
+  if (result.length === 0 || result[0].values.length === 0) {
+    // Create default preferences
+    const defaultPrefs: UserPreferences = {
+      units: 'metric',
+      theme: 'auto',
+      notifications: {
+        workoutReminders: true,
+        achievementAlerts: true,
+        weeklyReports: true
+      },
+      privacy: {
+        shareProgress: false,
+        publicProfile: false
+      }
+    }
+
+    await storeUserPreferences(defaultPrefs)
+    return defaultPrefs
+  }
+
+  // Convert database row to UserPreferences object
+  const columns = result[0].columns as string[]
+  const values = result[0].values[0] as any[]
+  
+  const dbRow: any = {}
+  columns.forEach((col, idx) => {
+    dbRow[col] = values[idx]
+  })
+
+  return {
+    units: dbRow.units as 'metric' | 'imperial',
+    theme: dbRow.theme as 'light' | 'dark' | 'auto',
+    notifications: {
+      workoutReminders: !!dbRow.notifications_workout_reminders,
+      achievementAlerts: !!dbRow.notifications_achievement_alerts,
+      weeklyReports: !!dbRow.notifications_weekly_reports
+    },
+    privacy: {
+      shareProgress: !!dbRow.privacy_share_progress,
+      publicProfile: !!dbRow.privacy_public_profile
+    }
+  }
+}
+
+/**
+ * Store user preferences
+ */
+export async function storeUserPreferences(preferences: UserPreferences): Promise<void> {
+  const db = await getDatabase()
+
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO user_preferences (
+      user_id, units, theme,
+      notifications_workout_reminders, notifications_achievement_alerts, notifications_weekly_reports,
+      privacy_share_progress, privacy_public_profile
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  try {
+    insertStmt.run([
+      'michael',
+      preferences.units,
+      preferences.theme,
+      preferences.notifications.workoutReminders ? 1 : 0,
+      preferences.notifications.achievementAlerts ? 1 : 0,
+      preferences.notifications.weeklyReports ? 1 : 0,
+      preferences.privacy.shareProgress ? 1 : 0,
+      preferences.privacy.publicProfile ? 1 : 0
+    ])
+  } finally {
+    insertStmt.free()
+  }
+}

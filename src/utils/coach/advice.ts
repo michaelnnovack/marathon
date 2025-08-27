@@ -9,6 +9,13 @@ export interface CoachingAdvice {
   nextGoals: string[]
 }
 
+export interface DailyWorkout {
+  type: string
+  distance: string
+  pace: string
+  reasoning: string
+}
+
 export function weeklyFocus(weeksToRace: number): string {
   if (weeksToRace > 12) return 'Base building: Focus on aerobic capacity with easy-paced runs and gradual mileage increases.'
   if (weeksToRace > 8) return 'Build phase: Introduce tempo runs and longer workouts. Build your lactate threshold.'
@@ -176,4 +183,138 @@ export function riskAssessment(load7: number, load28: number): string {
   if (ratio > 1.5) return '🔴 Elevated injury risk: consider a cutback week with reduced intensity.'
   if (ratio < 0.6) return '🟡 Training load quite low: gradually increase volume and consistency.'
   return '🟢 Training load appears well-managed. Good job maintaining consistency!'
+}
+
+export function getTodaysWorkout(
+  user: UserProfile,
+  activities: SimpleActivity[],
+  weeksToRace: number
+): DailyWorkout {
+  const recentActivities = activities.slice(-7)
+  const yesterdayActivity = recentActivities[recentActivities.length - 1]
+  const weeklyKm = recentActivities.reduce((sum, a) => sum + ((a.distance || 0) / 1000), 0)
+  
+  // Default easy pace - roughly conversational pace
+  let easyPace = '6:30'
+  let tempoPace = '5:45'
+  let intervalPace = '5:15'
+  
+  // Adjust paces based on goal time if available
+  if (user.goalTime) {
+    const [h, m, s] = user.goalTime.split(':').map(Number)
+    const goalSeconds = h * 3600 + m * 60 + s
+    const goalPacePerKm = goalSeconds / 42.195
+    const minutes = Math.floor(goalPacePerKm / 60)
+    const seconds = Math.round(goalPacePerKm % 60)
+    
+    easyPace = `${minutes + 1}:${(seconds + 30).toString().padStart(2, '0')}`
+    tempoPace = `${minutes}:${(seconds + 15).toString().padStart(2, '0')}`
+    intervalPace = `${Math.max(minutes - 1, 4)}:${Math.max(seconds - 15, 0).toString().padStart(2, '0')}`
+  }
+
+  const dayOfWeek = new Date().getDay() // 0 = Sunday, 1 = Monday, etc.
+  
+  // Check if yesterday was a hard day
+  const yesterdayWasHard = yesterdayActivity && yesterdayActivity.avgHr && yesterdayActivity.maxHr && 
+    yesterdayActivity.avgHr > (yesterdayActivity.maxHr * 0.8)
+  
+  // Recovery day logic
+  if (yesterdayWasHard) {
+    return {
+      type: 'Recovery Run',
+      distance: '5K',
+      pace: easyPace,
+      reasoning: 'Easy recovery run after yesterday\'s hard session. Focus on loosening up and active recovery.'
+    }
+  }
+  
+  // Weekly structure based on training phase and day
+  if (weeksToRace > 12) {
+    // Base building phase
+    if (dayOfWeek === 0) { // Sunday - Long run
+      const distance = user.level === 'beginner' ? '12K' : user.level === 'intermediate' ? '16K' : '20K'
+      return {
+        type: 'Long Run',
+        distance,
+        pace: easyPace,
+        reasoning: 'Base building long run. Focus on time on feet and aerobic development.'
+      }
+    } else if (dayOfWeek === 3) { // Wednesday - Tempo
+      return {
+        type: 'Tempo Run',
+        distance: '8K',
+        pace: tempoPace,
+        reasoning: 'Comfortably hard pace to build lactate threshold. Aim for controlled effort.'
+      }
+    } else if (dayOfWeek === 6) { // Saturday - Easy
+      return {
+        type: 'Easy Run',
+        distance: '6K',
+        pace: easyPace,
+        reasoning: 'Preparation for tomorrow\'s long run. Keep it conversational and relaxed.'
+      }
+    } else {
+      return {
+        type: 'Easy Run',
+        distance: '8K',
+        pace: easyPace,
+        reasoning: 'Aerobic base building. Focus on consistent, comfortable effort.'
+      }
+    }
+  } else if (weeksToRace > 4) {
+    // Peak training phase
+    if (dayOfWeek === 0) { // Sunday - Long run with race pace
+      return {
+        type: 'Long Run',
+        distance: '22K',
+        pace: `${easyPace} with 8K at goal pace`,
+        reasoning: 'Practice race pace during long run. Build confidence and muscle memory.'
+      }
+    } else if (dayOfWeek === 2) { // Tuesday - Intervals
+      return {
+        type: 'Intervals',
+        distance: '10K total',
+        pace: `6 x 1K at ${intervalPace}`,
+        reasoning: 'Speed work to sharpen for race day. Take 90sec recovery between intervals.'
+      }
+    } else if (dayOfWeek === 4) { // Thursday - Tempo
+      return {
+        type: 'Tempo Run',
+        distance: '12K',
+        pace: tempoPace,
+        reasoning: 'Sustained tempo effort to build lactate clearance and mental toughness.'
+      }
+    } else {
+      return {
+        type: 'Easy Run',
+        distance: '8K',
+        pace: easyPace,
+        reasoning: 'Recovery between quality sessions. Keep it easy and focus on form.'
+      }
+    }
+  } else {
+    // Taper phase
+    if (dayOfWeek === 0 && weeksToRace > 2) { // Final long run
+      return {
+        type: 'Long Run',
+        distance: '16K',
+        pace: easyPace,
+        reasoning: 'Final tune-up long run. Stay relaxed and trust your fitness.'
+      }
+    } else if (dayOfWeek === 3) { // Short tempo
+      return {
+        type: 'Race Pace Run',
+        distance: '6K',
+        pace: `${tempoPace} race pace`,
+        reasoning: 'Short race pace effort to keep legs sharp without fatigue.'
+      }
+    } else {
+      return {
+        type: 'Easy Run',
+        distance: '5K',
+        pace: easyPace,
+        reasoning: 'Taper recovery run. Keep legs moving but prioritize rest and race readiness.'
+      }
+    }
+  }
 }

@@ -7,9 +7,27 @@ import { Badge } from '@/components/ui/Badge'
 import { useActivities } from '@/store/activities'
 import { useUserStore } from '@/store/user'
 import { ChartBarIcon, CalendarIcon, ClockIcon, MapIcon, ExclamationTriangleIcon, FireIcon } from '@heroicons/react/24/outline'
-import { formatTime, formatPace } from '@/utils/tcx-analyzer'
 import { weeklyMileageKm, last7DaysMileageKm } from '@/store/activities'
 import Link from 'next/link'
+
+// Simple utility functions
+function formatTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${Math.floor(secs).toString().padStart(2, '0')}`
+  } else {
+    return `${minutes}:${Math.floor(secs).toString().padStart(2, '0')}`
+  }
+}
+
+function formatPace(minPerKm: number): string {
+  const minutes = Math.floor(minPerKm)
+  const seconds = Math.floor((minPerKm - minutes) * 60)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}/km`
+}
 
 export default function AnalyzePage() {
   const activities = useActivities((s) => s.list)
@@ -160,12 +178,12 @@ export default function AnalyzePage() {
         <Card>
           <CardContent className="text-center py-12">
             <ExclamationTriangleIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Training Data Found</h3>
+            <h3 className="text-lg font-semibold mb-2">Loading Training Data</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-4">
-              Upload your GPS watch files to start analyzing your training performance
+              Your activities are being synced from intervals.icu. Please refresh in a moment to see your analysis.
             </p>
-            <Link href="/setup">
-              <Button>Go to Setup & Upload Data</Button>
+            <Link href="/settings">
+              <Button>Go to Setup</Button>
             </Link>
           </CardContent>
         </Card>
@@ -368,10 +386,10 @@ export default function AnalyzePage() {
             <ChartBarIcon className="w-8 h-8 text-blue-500 mx-auto mb-3" />
             <h3 className="font-semibold mb-2">Need More Detail?</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Upload TCX files with GPS data for comprehensive pace, heart rate, and elevation analysis
+              More detailed analysis will be available once we load comprehensive training data from our API
             </p>
-            <Link href="/setup">
-              <Button variant="outline" size="sm">Upload More Data</Button>
+            <Link href="/settings">
+              <Button variant="outline" size="sm">Configure Settings</Button>
             </Link>
           </CardContent>
         </Card>

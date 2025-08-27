@@ -1,0 +1,539 @@
+import initSqlJs, { Database, SqlJsStatic } from 'sql.js'
+
+// Database instance management
+let SQL: SqlJsStatic | null = null
+let db: Database | null = null
+let isInitializing = false
+
+const DB_NAME = 'marathon_training_v1'
+const SCHEMA_VERSION = 1
+
+interface DatabaseConfig {
+  enableWAL?: boolean
+  cacheSize?: number
+  busyTimeout?: number
+}
+
+/**
+ * Initialize SQL.js and create/load database
+ */
+export async function initializeDatabase(config: DatabaseConfig = {}): Promise<Database> {
+  if (db) return db
+  if (isInitializing) {
+    // Wait for initialization to complete
+    while (isInitializing) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    return db!
+  }
+
+  isInitializing = true
+  
+  try {
+    console.log('Initializing SQLite database...')
+    
+    // Initialize SQL.js
+    if (!SQL) {
+      SQL = await initSqlJs({
+        // Load WASM from CDN for better reliability and to avoid bundling issues
+        locateFile: (file) => {
+          if (file.endsWith('.wasm')) {
+            return `https://sql.js.org/dist/${file}`
+          }
+          return file
+        }
+      })
+    }
+
+    // Try to load existing database from localStorage
+    const savedDb = loadDatabaseFromStorage()
+    
+    if (savedDb) {
+      console.log('Loading existing database from localStorage')
+      db = new SQL.Database(savedDb)
+      
+      // Verify schema version
+      const version = getSchemaVersion(db)
+      if (version !== SCHEMA_VERSION) {
+        console.log(`Schema version mismatch. Current: ${version}, Expected: ${SCHEMA_VERSION}`)
+        // Could implement migration logic here
+      }
+    } else {
+      console.log('Creating new database')
+      db = new SQL.Database()
+      await createSchema(db)
+    }
+
+    // Configure database for performance
+    configureDatabasePerformance(db, config)
+    
+    // Auto-save every 30 seconds
+    setInterval(() => {
+      if (db) {
+        saveDatabaseToStorage(db)
+      }
+    }, 30000)
+
+    // Save on page unload
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => {
+        if (db) {
+          saveDatabaseToStorage(db)
+        }
+      })
+    }
+
+    console.log('Database initialized successfully')
+    return db
+
+  } catch (error) {
+    console.error('Failed to initialize database:', error)
+    throw new Error(`Database initialization failed: ${error}`)
+  } finally {
+    isInitializing = false
+  }
+}
+
+/**
+ * Load database schema from SQL file
+ */
+async function createSchema(database: Database): Promise<void> {
+  try {
+    // In browser environment, we'll embed the schema
+    const schema = `
+-- Marathon Training Database Schema
+-- Optimized for fast queries and coaching intelligence
+
+-- User preferences and coaching settings
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'michael',
+    units TEXT NOT NULL DEFAULT 'metric' CHECK (units IN ('metric', 'imperial')),
+    theme TEXT NOT NULL DEFAULT 'auto' CHECK (theme IN ('light', 'dark', 'auto')),
+    notifications_workout_reminders INTEGER DEFAULT 1,
+    notifications_achievement_alerts INTEGER DEFAULT 1,
+    notifications_weekly_reports INTEGER DEFAULT 1,
+    privacy_share_progress INTEGER DEFAULT 0,
+    privacy_public_profile INTEGER DEFAULT 0,
+    coaching_enabled INTEGER DEFAULT 1,
+    coaching_intensity TEXT DEFAULT 'moderate' CHECK (coaching_intensity IN ('conservative', 'moderate', 'aggressive')),
+    coaching_focus TEXT DEFAULT 'endurance',
+    auto_rest_days INTEGER DEFAULT 1,
+    max_weekly_mileage REAL,
+    race_date TEXT,
+    goal_time TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Activities with enhanced coaching metadata
+CREATE TABLE IF NOT EXISTS activities (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'michael',
+    date TEXT NOT NULL,
+    distance REAL NOT NULL,
+    duration INTEGER NOT NULL,
+    avg_hr INTEGER,
+    max_hr INTEGER,
+    elevation_gain REAL,
+    calories INTEGER,
+    avg_pace REAL,
+    type TEXT DEFAULT 'easy' CHECK (type IN ('easy', 'tempo', 'interval', 'long', 'recovery', 'cross', 'race')),
+    
+    training_stress_score REAL,
+    intensity_factor REAL,
+    coaching_notes TEXT,
+    perceived_exertion INTEGER CHECK (perceived_exertion BETWEEN 1 AND 10),
+    weather_conditions TEXT,
+    terrain TEXT,
+    track_points TEXT,
+    
+    source TEXT DEFAULT 'intervals_icu',
+    external_id TEXT,
+    synced_at TEXT,
+    
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    
+    UNIQUE(external_id, source)
+);
+
+-- Training plans with dynamic adaptation
+CREATE TABLE IF NOT EXISTS training_plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'michael',
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'marathon' CHECK (type IN ('5k', '10k', 'half_marathon', 'marathon', 'custom')),
+    status TEXT DEFAULT 'active' CHECK (status IN ('draft', 'active', 'paused', 'completed', 'archived')),
+    
+    start_date TEXT NOT NULL,
+    race_date TEXT,
+    goal_time TEXT,
+    weekly_mileage_target REAL,
+    
+    current_week INTEGER DEFAULT 1,
+    adaptation_factor REAL DEFAULT 1.0,
+    last_adapted_at TEXT,
+    
+    weeks_data TEXT NOT NULL,
+    
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Daily coach recommendations and workout history
+CREATE TABLE IF NOT EXISTS coach_recommendations (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'michael',
+    date TEXT NOT NULL,
+    
+    workout_type TEXT NOT NULL CHECK (workout_type IN ('easy', 'tempo', 'interval', 'long', 'recovery', 'cross', 'rest')),
+    distance_target REAL,
+    duration_target INTEGER,
+    pace_target REAL,
+    hr_zone_target INTEGER,
+    
+    recommendation_reason TEXT NOT NULL,
+    confidence_score REAL DEFAULT 0.7 CHECK (confidence_score BETWEEN 0.0 AND 1.0),
+    
+    fitness_readiness REAL,
+    fatigue_factor REAL,
+    motivation_factor REAL,
+    
+    completed INTEGER DEFAULT 0,
+    actual_activity_id TEXT,
+    completion_notes TEXT,
+    
+    adherence_score REAL,
+    next_day_adjustment TEXT,
+    
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    
+    UNIQUE(user_id, date),
+    FOREIGN KEY (actual_activity_id) REFERENCES activities(id)
+);
+
+-- Fitness metrics for advanced coaching (CTL/ATL/TSB curves)
+CREATE TABLE IF NOT EXISTS fitness_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL DEFAULT 'michael',
+    date TEXT NOT NULL,
+    
+    chronic_training_load REAL NOT NULL DEFAULT 0,
+    acute_training_load REAL NOT NULL DEFAULT 0,
+    training_stress_balance REAL NOT NULL DEFAULT 0,
+    
+    daily_training_stress REAL DEFAULT 0,
+    daily_duration INTEGER DEFAULT 0,
+    daily_distance REAL DEFAULT 0,
+    
+    fitness_level REAL,
+    fatigue_level REAL,
+    form_level REAL,
+    
+    resting_hr INTEGER,
+    hrv_score REAL,
+    sleep_quality INTEGER CHECK (sleep_quality BETWEEN 1 AND 5),
+    
+    vo2_max_estimate REAL,
+    lactate_threshold_pace REAL,
+    aerobic_efficiency REAL,
+    
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    
+    UNIQUE(user_id, date)
+);
+
+-- Workout completion tracking for detailed analysis
+CREATE TABLE IF NOT EXISTS workout_completions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'michael',
+    planned_workout_id TEXT,
+    actual_activity_id TEXT,
+    
+    completion_type TEXT CHECK (completion_type IN ('completed', 'modified', 'skipped', 'replaced')),
+    adherence_percentage REAL CHECK (adherence_percentage BETWEEN 0 AND 100),
+    
+    planned_distance REAL,
+    actual_distance REAL,
+    planned_duration INTEGER,
+    actual_duration INTEGER,
+    planned_pace REAL,
+    actual_pace REAL,
+    
+    perceived_effort INTEGER CHECK (perceived_effort BETWEEN 1 AND 10),
+    enjoyment_rating INTEGER CHECK (enjoyment_rating BETWEEN 1 AND 5),
+    completion_notes TEXT,
+    
+    performance_analysis TEXT,
+    next_workout_adjustments TEXT,
+    
+    completed_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    
+    FOREIGN KEY (actual_activity_id) REFERENCES activities(id)
+);
+
+-- Performance indexes
+CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date DESC);
+CREATE INDEX IF NOT EXISTS idx_activities_user_date ON activities(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+CREATE INDEX IF NOT EXISTS idx_activities_source ON activities(source, external_id);
+
+CREATE INDEX IF NOT EXISTS idx_coach_recommendations_date ON coach_recommendations(date DESC);
+CREATE INDEX IF NOT EXISTS idx_coach_recommendations_user_date ON coach_recommendations(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_coach_recommendations_completed ON coach_recommendations(completed);
+
+CREATE INDEX IF NOT EXISTS idx_fitness_metrics_date ON fitness_metrics(date DESC);
+CREATE INDEX IF NOT EXISTS idx_fitness_metrics_user_date ON fitness_metrics(user_id, date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_workout_completions_date ON workout_completions(completed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workout_completions_activity ON workout_completions(actual_activity_id);
+
+-- Triggers for automatic timestamp updates
+CREATE TRIGGER IF NOT EXISTS update_user_preferences_timestamp 
+    AFTER UPDATE ON user_preferences
+BEGIN
+    UPDATE user_preferences SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_activities_timestamp 
+    AFTER UPDATE ON activities
+BEGIN
+    UPDATE activities SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_training_plans_timestamp 
+    AFTER UPDATE ON training_plans
+BEGIN
+    UPDATE training_plans SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_coach_recommendations_timestamp 
+    AFTER UPDATE ON coach_recommendations
+BEGIN
+    UPDATE coach_recommendations SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+-- Schema version table
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR REPLACE INTO schema_version (version) VALUES (${SCHEMA_VERSION});
+`
+
+    database.exec(schema)
+    console.log('Database schema created successfully')
+
+  } catch (error) {
+    console.error('Failed to create database schema:', error)
+    throw error
+  }
+}
+
+/**
+ * Configure database for optimal performance
+ */
+function configureDatabasePerformance(database: Database, config: DatabaseConfig): void {
+  try {
+    // Set cache size (default ~2MB for better performance)
+    const cacheSize = config.cacheSize || 2000
+    database.exec(`PRAGMA cache_size = ${cacheSize};`)
+
+    // Enable foreign key constraints
+    database.exec('PRAGMA foreign_keys = ON;')
+
+    // Optimize for fast reads
+    database.exec('PRAGMA optimize;')
+    
+    // Set synchronous mode for better performance in browser
+    database.exec('PRAGMA synchronous = NORMAL;')
+
+    console.log('Database performance configuration applied')
+  } catch (error) {
+    console.warn('Failed to configure database performance:', error)
+  }
+}
+
+/**
+ * Get current schema version
+ */
+function getSchemaVersion(database: Database): number {
+  try {
+    const result = database.exec('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1')
+    if (result.length > 0 && result[0].values.length > 0) {
+      return result[0].values[0][0] as number
+    }
+  } catch (error) {
+    console.warn('Could not read schema version:', error)
+  }
+  return 0
+}
+
+/**
+ * Save database to localStorage
+ */
+function saveDatabaseToStorage(database: Database): void {
+  try {
+    const data = database.export()
+    const compressed = new Uint8Array(data)
+    
+    // Convert to base64 for localStorage storage
+    const base64 = btoa(String.fromCharCode.apply(null, Array.from(compressed)))
+    
+    localStorage.setItem(DB_NAME, base64)
+    localStorage.setItem(`${DB_NAME}_timestamp`, new Date().toISOString())
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Database saved to localStorage (${Math.round(base64.length / 1024)}KB)`)
+    }
+  } catch (error) {
+    console.error('Failed to save database to localStorage:', error)
+  }
+}
+
+/**
+ * Load database from localStorage
+ */
+function loadDatabaseFromStorage(): Uint8Array | null {
+  try {
+    const base64 = localStorage.getItem(DB_NAME)
+    if (!base64) return null
+
+    // Convert from base64
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    
+    const timestamp = localStorage.getItem(`${DB_NAME}_timestamp`)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Database loaded from localStorage (${Math.round(base64.length / 1024)}KB), saved at: ${timestamp}`)
+    }
+    
+    return bytes
+  } catch (error) {
+    console.error('Failed to load database from localStorage:', error)
+    return null
+  }
+}
+
+/**
+ * Get database instance (initialize if needed)
+ */
+export async function getDatabase(): Promise<Database> {
+  if (!db) {
+    await initializeDatabase()
+  }
+  return db!
+}
+
+/**
+ * Force save database to localStorage
+ */
+export async function saveDatabase(): Promise<void> {
+  const database = await getDatabase()
+  saveDatabaseToStorage(database)
+}
+
+/**
+ * Clear database and start fresh
+ */
+export async function clearDatabase(): Promise<void> {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(DB_NAME)
+    localStorage.removeItem(`${DB_NAME}_timestamp`)
+  }
+  
+  if (db) {
+    db.close()
+    db = null
+  }
+  
+  // Reinitialize
+  await initializeDatabase()
+  console.log('Database cleared and reinitialized')
+}
+
+/**
+ * Export database for backup
+ */
+export async function exportDatabase(): Promise<Uint8Array> {
+  const database = await getDatabase()
+  return database.export()
+}
+
+/**
+ * Import database from backup
+ */
+export async function importDatabase(data: Uint8Array): Promise<void> {
+  if (db) {
+    db.close()
+  }
+  
+  if (!SQL) {
+    await initializeDatabase()
+  }
+  
+  db = new SQL!.Database(data)
+  saveDatabaseToStorage(db)
+  console.log('Database imported successfully')
+}
+
+/**
+ * Get database statistics
+ */
+export async function getDatabaseStats(): Promise<{
+  size: number
+  tables: string[]
+  totalRows: number
+  lastSaved?: string
+}> {
+  const database = await getDatabase()
+  
+  try {
+    // Get table names
+    const tablesResult = database.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%' 
+      ORDER BY name
+    `)
+    
+    const tables = tablesResult.length > 0 
+      ? tablesResult[0].values.map(row => row[0] as string)
+      : []
+
+    // Count total rows across all tables
+    let totalRows = 0
+    for (const table of tables) {
+      const countResult = database.exec(`SELECT COUNT(*) FROM ${table}`)
+      if (countResult.length > 0 && countResult[0].values.length > 0) {
+        totalRows += countResult[0].values[0][0] as number
+      }
+    }
+
+    // Get database size
+    const data = database.export()
+    const size = data.length
+
+    // Get last saved timestamp
+    const lastSaved = typeof window !== 'undefined' 
+      ? localStorage.getItem(`${DB_NAME}_timestamp`) || undefined
+      : undefined
+
+    return {
+      size,
+      tables,
+      totalRows,
+      lastSaved
+    }
+  } catch (error) {
+    console.error('Failed to get database stats:', error)
+    throw error
+  }
+}

@@ -263,6 +263,7 @@ export interface ActivitiesState extends LoadingState {
   removeActivity: (id: string) => void
   clear: () => void
   hydrate: () => Promise<void>
+  refreshFromIntervalsIcu: (limit?: number) => Promise<void>
   getById: (id: string) => SimpleActivity | undefined
   getByDateRange: (start: string, end: string) => SimpleActivity[]
 }
@@ -285,17 +286,175 @@ export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]
 }
 
-// Event Types
-export interface ActivityUploadEvent {
-  type: 'upload_start' | 'upload_progress' | 'upload_complete' | 'upload_error'
-  payload: {
-    filename?: string
-    progress?: number
-    activities?: SimpleActivity[]
-    error?: string
+// Enhanced Coaching Types
+export type RaceDistance = '5K' | '10K' | 'Half Marathon' | 'Marathon'
+
+export interface PersonalRecord {
+  id: string
+  distance: RaceDistance
+  time: number // seconds
+  pace: number // seconds per km
+  date: string // ISO date
+  activityId?: string
+  confidence: 'estimated' | 'actual' // whether from race or training run
+  conditions?: {
+    temperature?: number
+    humidity?: number
+    elevation?: number
+    course: 'flat' | 'hilly' | 'mixed'
   }
 }
 
+export interface TrainingStressBalance {
+  ctl: number // Chronic Training Load (fitness)
+  atl: number // Acute Training Load (fatigue) 
+  tsb: number // Training Stress Balance (form)
+  rampRate: number // weekly training load increase %
+  lastUpdated: string
+}
+
+export interface RaceReadinessScore {
+  overall: number // 0-100
+  components: {
+    aerobicBase: number // 0-100, based on weekly mileage trends and Z2 work
+    lactateThreshold: number // 0-100, based on tempo/threshold work
+    neuromuscularPower: number // 0-100, based on interval/speed work
+    strengthMobility: number // 0-100, based on consistency and injury history
+    mentalPreparation: number // 0-100, based on long runs and race experience
+  }
+  recommendations: string[]
+  lastCalculated: string
+}
+
+export interface InjuryRisk {
+  overall: 'low' | 'moderate' | 'high'
+  score: number // 0-100
+  factors: {
+    trainingLoadProgression: number // weekly mileage increase
+    intensityDistribution: number // % of hard vs easy training
+    recoveryAdequacy: number // based on HRV, sleep, subjective feel
+    historicalPattern: number // based on past injuries
+  }
+  recommendations: string[]
+  lastAssessed: string
+}
+
+export interface WorkoutRecommendation {
+  id: string
+  date: string
+  type: WorkoutType
+  title: string
+  description: string
+  targetDistance?: number // meters
+  targetDuration?: number // minutes
+  intervals?: {
+    warmup: { distance?: number; duration?: number; pace?: string }
+    mainSet: Array<{
+      repetitions: number
+      distance?: number // meters
+      duration?: number // seconds
+      pace: string // e.g., "5:20/km"
+      recovery: { duration: number; type: 'active' | 'rest' }
+    }>
+    cooldown: { distance?: number; duration?: number; pace?: string }
+  }
+  paceGuidance: {
+    easy?: string
+    marathon?: string
+    tempo?: string
+    interval?: string
+  }
+  heartRateGuidance?: {
+    zone1?: [number, number] // recovery
+    zone2?: [number, number] // aerobic
+    zone3?: [number, number] // tempo
+    zone4?: [number, number] // threshold
+    zone5?: [number, number] // VO2max
+  }
+  reasoning: string // why this workout was recommended
+  priority: 'essential' | 'recommended' | 'optional'
+}
+
+export interface WeeklyPlan {
+  week: string // ISO date of Monday
+  phase: 'base' | 'build' | 'peak' | 'taper' | 'recovery'
+  targetMileage: number // km
+  workouts: WorkoutRecommendation[]
+  focusAreas: string[]
+  keyWorkout?: string // id of the most important workout
+  adaptations?: string[] // adjustments based on recent performance
+}
+
+export interface HREfficiencyAnalysis {
+  trend: 'improving' | 'stable' | 'declining'
+  efficiencyScore: number // 0-100, higher = better efficiency
+  recentSamples: Array<{
+    date: string
+    pace: number // min/km
+    heartRate: number
+    efficiency: number
+  }>
+  recommendations: string[]
+}
+
+export interface PostWorkoutFeedback {
+  activityId: string
+  holisticCoaching: {
+    performance: string
+    effort: string
+    nextSteps: string
+    encouragement: string
+  }
+  hrEfficiency: HREfficiencyAnalysis
+  trainingStress: {
+    impact: 'low' | 'moderate' | 'high'
+    recovery: string
+    nextWorkout: string
+  }
+  achievements?: string[]
+  concerns?: string[]
+}
+
+// Enhanced Performance Metrics for Dashboard
+export interface DashboardMetrics {
+  weeklyMileage: {
+    current: number
+    previous: number
+    percentChange: number
+    trend: 'increasing' | 'stable' | 'decreasing'
+    target: number
+  }
+  personalRecords: PersonalRecord[]
+  raceReadiness: RaceReadinessScore
+  injuryRisk: InjuryRisk
+  trainingStress: TrainingStressBalance
+  todaysWorkout: WorkoutRecommendation
+  weeklyPlan: WeeklyPlan
+  recentFeedback: PostWorkoutFeedback[]
+  marathonPrediction: PredictionResult & {
+    targetTime?: number
+    onTrack: boolean
+    timeToTarget?: number // days
+  }
+}
+
+// Data Layer Types
+export interface CoachingMetrics {
+  userId: string
+  weeklyMileage: number
+  fourWeekAverage: number
+  longestRun: number
+  averagePace: number
+  volumeProgression: number // weekly change %
+  intensityBalance: {
+    easy: number    // % of weekly volume
+    moderate: number
+    hard: number
+  }
+  lastUpdated: string
+}
+
+// Event Types
 export interface PerformanceEvent {
   type: 'performance_measure'
   payload: {

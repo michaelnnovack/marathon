@@ -33,7 +33,7 @@ export default function ActivityList({ activities, itemHeight = 132, overscanCou
   // Reserved for future analytics hooks
 
   if (!activities.length) {
-    return <div className="text-sm opacity-70">No activities to show.</div>
+    return <div className="text-sm opacity-70">Your activities are syncing from intervals.icu...</div>
   }
 
   return (

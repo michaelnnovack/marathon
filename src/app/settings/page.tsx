@@ -56,8 +56,8 @@ export default function SetupPage() {
     <div className="space-y-8">
       {/* Header Section */}
       <div className="text-center py-6">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-2">Race Goals & Zones</h1>
-        <p className="text-lg opacity-70">Set your marathon goals and configure training zones. Your activity data syncs automatically from intervals.icu.</p>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2">Settings</h1>
+        <p className="text-lg opacity-70">Configure your race goals, training zones, and app preferences.</p>
       </div>
       
       {/* Race Configuration */}

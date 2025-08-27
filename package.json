@@ -14,8 +14,11 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/d3": "^7.4.3",
     "@types/leaflet": "^1.9.20",
+    "@types/sql.js": "^1.4.9",
+    "better-sqlite3": "^12.2.0",
     "clsx": "^2.1.1",
     "d3": "^7.9.0",
     "framer-motion": "^11.2.12",
@@ -29,6 +32,8 @@
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^1.8.11",
     "recharts": "^2.10.3",
+    "sql.js": "^1.13.0",
+    "sqlite3": "^5.1.7",
     "unsplash-js": "^7.0.19",
     "zustand": "^4.5.2"
   },

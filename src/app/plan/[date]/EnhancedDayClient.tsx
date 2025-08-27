@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback, memo } from 'react'
 import Link from 'next/link'
 import { useUserStore } from '@/store/user'
 import { generatePlan } from '@/utils/plan'
@@ -8,6 +8,9 @@ import { useProgress } from '@/store/progress'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { LoadingCard, LoadingSkeleton } from '@/components/LoadingSpinner'
+import { validateWorkoutCompletion, sanitizeString, sanitizeNumber } from '@/utils/validation'
 import { 
   CheckIcon, 
   ArrowLeftIcon, 
@@ -21,7 +24,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 export default function EnhancedDayClient({ date }: { date: string }) {
-  const user = useUserStore((s) => s.user)
+  const { user, isLoading: userLoading } = useUserStore((s) => ({ user: s.user, isLoading: s.isLoading }))
   const progress = useProgress()
 
   const [rpe, setRpe] = useState<number>(5)
@@ -31,15 +34,36 @@ export default function EnhancedDayClient({ date }: { date: string }) {
   const [heartRate, setHeartRate] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
-    progress.hydrate()
+    if (typeof window !== 'undefined') {
+      progress.hydrate()
+    }
   }, [progress])
 
-  const plan = useMemo(
-    () => (user?.raceDate ? generatePlan(user.id, new Date().toISOString().slice(0, 10), user.raceDate) : null),
-    [user?.raceDate, user?.id]
-  )
+  // Auto-hide messages after 3 seconds
+  useEffect(() => {
+    if (showSuccess || saveError) {
+      const timer = setTimeout(() => {
+        setShowSuccess(false)
+        setSaveError(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [showSuccess, saveError])
+
+  const plan = useMemo(() => {
+    if (!user?.raceDate || !user?.id) return null
+    
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      return generatePlan(user.id, today, user.raceDate)
+    } catch (error) {
+      console.error('Failed to generate training plan:', error)
+      return null
+    }
+  }, [user?.raceDate, user?.id])
   const workout = useMemo(() => (plan ? plan.weeks.flatMap((w) => w.days).find((d) => d.date === date) : null), [plan, date])
 
   useEffect(() => {
@@ -51,13 +75,128 @@ export default function EnhancedDayClient({ date }: { date: string }) {
     }
   }, [workout?.id, progress.map])
 
+  const workoutMeta = useMemo(() => {
+    if (!workout) return null
+    
+    const isCompleted = workout.id && progress.map[workout.id]?.completedAt
+    const estimatedDistance = Math.round((workout.duration * 0.2) * 10) / 10 // rough estimate
+    const workoutTypeColors = {
+      easy: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+      tempo: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+      interval: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+      long: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+      recovery: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      cross: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+      race: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400'
+    }
+    
+    return {
+      isCompleted,
+      estimatedDistance,
+      typeColor: workoutTypeColors[workout.type as keyof typeof workoutTypeColors],
+      intensity: workout.type === 'easy' || workout.type === 'recovery' ? 'Low' :
+                workout.type === 'tempo' || workout.type === 'long' ? 'Moderate' : 'High',
+      focus: workout.type === 'easy' ? 'Recovery' :
+             workout.type === 'tempo' ? 'Threshold' :
+             workout.type === 'interval' ? 'VO2 Max' :
+             workout.type === 'long' ? 'Endurance' : 'Active Recovery'
+    }
+  }, [workout, progress.map])
+
+  const save = useCallback(async () => {
+    if (!workout) return
+    
+    setIsSubmitting(true)
+    setSaveError(null)
+    
+    try {
+      // Validate all inputs using validation utility
+      const validation = validateWorkoutCompletion({
+        actualDistance,
+        actualDuration,
+        heartRate,
+        rpe,
+        notes
+      })
+      
+      if (!validation.isValid) {
+        throw new Error(validation.errors[0]) // Show first error
+      }
+      
+      // Safely parse and sanitize inputs
+      const actualDistanceNum = actualDistance ? sanitizeNumber(actualDistance, 0, 1000) : undefined
+      const actualDurationNum = actualDuration ? sanitizeNumber(actualDuration, 0, 1440) : undefined
+      const heartRateNum = heartRate ? sanitizeNumber(heartRate, 30, 220) : undefined
+      const sanitizedNotes = sanitizeString(notes, 1000)
+      
+      const completionData = {
+        completedAt: new Date().toISOString(),
+        rpe,
+        notes: sanitizedNotes,
+        actualDistance: actualDistanceNum,
+        actualDuration: actualDurationNum ? actualDurationNum * 60 : undefined, // convert minutes to seconds
+        avgHeartRate: heartRateNum ? Math.round(heartRateNum) : undefined
+      }
+      
+      progress.mark(workout.id, completionData)
+      setShowSuccess(true)
+      setSaveError(null)
+    } catch (error) {
+      console.error('Failed to save workout:', error)
+      setSaveError(error instanceof Error ? error.message : 'Failed to save workout. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [workout, rpe, notes, actualDistance, actualDuration, heartRate, progress])
+
+  // Input handlers
+  const handleDistanceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setActualDistance(e.target.value)
+  }, [])
+
+  const handleDurationChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setActualDuration(e.target.value)
+  }, [])
+
+  const handleHeartRateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setHeartRate(e.target.value)
+  }, [])
+
+  const handleRpeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setRpe(parseInt(e.target.value))
+  }, [])
+
+  const handleNotesChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNotes(e.target.value)
+  }, [])
+
+  // Show loading state while user data is being hydrated
+  if (userLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <LoadingSkeleton lines={1} className="w-32" />
+          <LoadingSkeleton lines={1} className="w-24" />
+        </div>
+        <LoadingCard />
+        <div className="grid lg:grid-cols-2 gap-6">
+          <LoadingCard />
+          <div className="space-y-6">
+            <LoadingCard />
+            <LoadingCard />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!user?.raceDate) {
     return (
       <div className="text-center py-12">
         <ExclamationTriangleIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
         <h2 className="text-xl font-semibold mb-2">Set Your Race Date</h2>
         <p className="text-sm opacity-70 mb-4">Configure your training plan in setup</p>
-        <Link href="/setup">
+        <Link href="/settings">
           <Button>Go to Setup</Button>
         </Link>
       </div>
@@ -79,44 +218,6 @@ export default function EnhancedDayClient({ date }: { date: string }) {
       </div>
     )
   }
-  
-  const isCompleted = workout.id && progress.map[workout.id]?.completedAt
-  const estimatedDistance = Math.round((workout.duration * 0.2) * 10) / 10 // rough estimate
-  const workoutTypeColors = {
-    easy: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-    tempo: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-    interval: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-    long: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-    recovery: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    cross: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
-    race: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400'
-  }
-
-  const save = async () => {
-    if (!workout) return
-    
-    setIsSubmitting(true)
-    try {
-      const completionData = {
-        completedAt: new Date().toISOString(),
-        rpe,
-        notes,
-        actualDistance: actualDistance ? parseFloat(actualDistance) : undefined,
-        actualDuration: actualDuration ? parseFloat(actualDuration) * 60 : undefined, // convert minutes to seconds
-        avgHeartRate: heartRate ? parseInt(heartRate) : undefined
-      }
-      
-      progress.mark(workout.id, completionData)
-      setShowSuccess(true)
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => setShowSuccess(false), 3000)
-    } catch (error) {
-      console.error('Failed to save workout:', error)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -129,7 +230,7 @@ export default function EnhancedDayClient({ date }: { date: string }) {
           </Button>
         </Link>
         
-        {isCompleted && (
+        {workoutMeta?.isCompleted && (
           <Badge variant="success" className="flex items-center gap-1">
             <CheckIcon className="w-4 h-4" />
             Completed
@@ -142,7 +243,7 @@ export default function EnhancedDayClient({ date }: { date: string }) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Badge className={workoutTypeColors[workout.type as keyof typeof workoutTypeColors]}>
+              <Badge className={workoutMeta?.typeColor}>
                 {workout.type.charAt(0).toUpperCase() + workout.type.slice(1)}
               </Badge>
               <h1 className="text-2xl font-bold">
@@ -168,24 +269,20 @@ export default function EnhancedDayClient({ date }: { date: string }) {
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <MapPinIcon className="w-5 h-5 mx-auto mb-1 opacity-60" />
               <div className="text-sm opacity-60">Est. Distance</div>
-              <div className="font-semibold">~{estimatedDistance}km</div>
+              <div className="font-semibold">~{workoutMeta?.estimatedDistance}km</div>
             </div>
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <FireIcon className="w-5 h-5 mx-auto mb-1 opacity-60" />
               <div className="text-sm opacity-60">Intensity</div>
               <div className="font-semibold">
-                {workout.type === 'easy' || workout.type === 'recovery' ? 'Low' :
-                 workout.type === 'tempo' || workout.type === 'long' ? 'Moderate' : 'High'}
+                {workoutMeta?.intensity}
               </div>
             </div>
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <StarIcon className="w-5 h-5 mx-auto mb-1 opacity-60" />
               <div className="text-sm opacity-60">Focus</div>
               <div className="font-semibold text-sm">
-                {workout.type === 'easy' ? 'Recovery' :
-                 workout.type === 'tempo' ? 'Threshold' :
-                 workout.type === 'interval' ? 'VO2 Max' :
-                 workout.type === 'long' ? 'Endurance' : 'Active Recovery'}
+                {workoutMeta?.focus}
               </div>
             </div>
           </div>
@@ -196,10 +293,10 @@ export default function EnhancedDayClient({ date }: { date: string }) {
         {/* Completion Form */}
         <Card>
           <CardHeader>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <CheckIcon className="w-5 h-5" />
-              {isCompleted ? 'Update Workout' : 'Complete Workout'}
-            </h3>
+              {workoutMeta?.isCompleted ? 'Update Workout' : 'Complete Workout'}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Success Message */}
@@ -212,6 +309,16 @@ export default function EnhancedDayClient({ date }: { date: string }) {
               </div>
             )}
 
+            {/* Error Message */}
+            {saveError && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+                  <ExclamationTriangleIcon className="w-5 h-5" />
+                  <span className="font-medium">{saveError}</span>
+                </div>
+              </div>
+            )}
+
             {/* Actual Performance */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -220,9 +327,9 @@ export default function EnhancedDayClient({ date }: { date: string }) {
                   type="number"
                   step="0.1"
                   value={actualDistance}
-                  onChange={(e) => setActualDistance(e.target.value)}
+                  onChange={handleDistanceChange}
                   className="w-full p-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30"
-                  placeholder={estimatedDistance.toString()}
+                  placeholder={workoutMeta?.estimatedDistance.toString()}
                 />
               </div>
               <div>
@@ -230,7 +337,7 @@ export default function EnhancedDayClient({ date }: { date: string }) {
                 <input
                   type="number"
                   value={actualDuration}
-                  onChange={(e) => setActualDuration(e.target.value)}
+                  onChange={handleDurationChange}
                   className="w-full p-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30"
                   placeholder={workout.duration.toString()}
                 />
@@ -243,7 +350,7 @@ export default function EnhancedDayClient({ date }: { date: string }) {
               <input
                 type="number"
                 value={heartRate}
-                onChange={(e) => setHeartRate(e.target.value)}
+                onChange={handleHeartRateChange}
                 className="w-full p-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30"
                 placeholder="Optional"
               />
@@ -258,7 +365,7 @@ export default function EnhancedDayClient({ date }: { date: string }) {
                   min={1} 
                   max={10} 
                   value={rpe} 
-                  onChange={(e) => setRpe(parseInt(e.target.value))}
+                  onChange={handleRpeChange}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs opacity-60">
@@ -274,7 +381,7 @@ export default function EnhancedDayClient({ date }: { date: string }) {
               <label className="block text-sm font-medium mb-1">Notes</label>
               <textarea
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={handleNotesChange}
                 rows={3}
                 className="w-full p-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/30"
                 placeholder="How did the workout feel? Any observations?"
@@ -292,71 +399,80 @@ export default function EnhancedDayClient({ date }: { date: string }) {
               ) : (
                 <CheckIcon className="w-4 h-4 mr-2" />
               )}
-              {isSubmitting ? 'Saving...' : isCompleted ? 'Update Workout' : 'Complete Workout'}
+              {isSubmitting ? 'Saving...' : workoutMeta?.isCompleted ? 'Update Workout' : 'Complete Workout'}
             </Button>
           </CardContent>
         </Card>
 
         {/* Pace Zones & Tips */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <ClockIcon className="w-5 h-5" />
-                Target Pace Zones
-              </h3>
-            </CardHeader>
-            <CardContent>
-              <PaceZones goalTime={user.goalTime} workoutType={workout.type} />
-            </CardContent>
-          </Card>
+          <ErrorBoundary componentName="PaceZones">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <ClockIcon className="w-5 h-5" />
+                  Target Pace Zones
+                </div>
+              </CardHeader>
+              <CardContent>
+                <PaceZones goalTime={user?.goalTime} workoutType={workout.type} />
+              </CardContent>
+            </Card>
+          </ErrorBoundary>
 
-          <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <HeartIcon className="w-5 h-5" />
-                Workout Tips
-              </h3>
-            </CardHeader>
-            <CardContent>
-              <WorkoutTips workoutType={workout.type} />
-            </CardContent>
-          </Card>
+          <ErrorBoundary componentName="WorkoutTips">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <HeartIcon className="w-5 h-5" />
+                  Workout Tips
+                </div>
+              </CardHeader>
+              <CardContent>
+                <WorkoutTips workoutType={workout.type} />
+              </CardContent>
+            </Card>
+          </ErrorBoundary>
         </div>
       </div>
     </div>
   )
 }
 
-function PaceZones({ goalTime, workoutType }: { goalTime?: string, workoutType: string }) {
+const PaceZones = memo(function PaceZones({ goalTime, workoutType }: { goalTime?: string, workoutType: string }) {
+  // Calculate pace zones if goal time is available
+  const zones = useMemo(() => {
+    if (!goalTime) return []
+    
+    const [h, m, s] = goalTime.split(':').map(Number)
+    const marathonSec = h * 3600 + m * 60 + s
+    const paceSec = marathonSec / 42.195
+    
+    const fmt = (sec: number) => {
+      const mm = Math.floor(sec / 60)
+      const ss = Math.round(sec % 60).toString().padStart(2, '0')
+      return `${mm}:${ss}/km`
+    }
+    
+    return [
+      { name: 'Easy', pace: fmt(paceSec * 1.3), color: 'bg-green-100 dark:bg-green-900/20', active: workoutType === 'easy' || workoutType === 'recovery' },
+      { name: 'Tempo', pace: fmt(paceSec * 1.05), color: 'bg-orange-100 dark:bg-orange-900/20', active: workoutType === 'tempo' },
+      { name: 'Interval', pace: fmt(paceSec * 0.9), color: 'bg-red-100 dark:bg-red-900/20', active: workoutType === 'interval' },
+      { name: 'Long Run', pace: fmt(paceSec * 1.15), color: 'bg-purple-100 dark:bg-purple-900/20', active: workoutType === 'long' },
+      { name: 'Marathon Pace', pace: fmt(paceSec), color: 'bg-blue-100 dark:bg-blue-900/20', active: workoutType === 'race' }
+    ]
+  }, [goalTime, workoutType])
+  
   if (!goalTime) {
     return (
       <div className="text-center py-4">
         <p className="text-sm opacity-80 mb-2">Set a goal time to see target paces</p>
-        <Link href="/setup">
+        <Link href="/settings">
           <Button variant="outline" size="sm">Go to Setup</Button>
         </Link>
       </div>
     )
   }
-  
-  const [h, m, s] = goalTime.split(':').map(Number)
-  const marathonSec = h * 3600 + m * 60 + s
-  const paceSec = marathonSec / 42.195
-  
-  const fmt = (sec: number) => {
-    const mm = Math.floor(sec / 60)
-    const ss = Math.round(sec % 60).toString().padStart(2, '0')
-    return `${mm}:${ss}/km`
-  }
-  
-  const zones = [
-    { name: 'Easy', pace: fmt(paceSec * 1.3), color: 'bg-green-100 dark:bg-green-900/20', active: workoutType === 'easy' || workoutType === 'recovery' },
-    { name: 'Tempo', pace: fmt(paceSec * 1.05), color: 'bg-orange-100 dark:bg-orange-900/20', active: workoutType === 'tempo' },
-    { name: 'Interval', pace: fmt(paceSec * 0.9), color: 'bg-red-100 dark:bg-red-900/20', active: workoutType === 'interval' },
-    { name: 'Long Run', pace: fmt(paceSec * 1.15), color: 'bg-purple-100 dark:bg-purple-900/20', active: workoutType === 'long' },
-    { name: 'Marathon Pace', pace: fmt(paceSec), color: 'bg-blue-100 dark:bg-blue-900/20', active: workoutType === 'race' }
-  ]
   
   return (
     <div className="space-y-2">
@@ -380,9 +496,9 @@ function PaceZones({ goalTime, workoutType }: { goalTime?: string, workoutType: 
       ))}
     </div>
   )
-}
+})
 
-function WorkoutTips({ workoutType }: { workoutType: string }) {
+const WorkoutTips = memo(function WorkoutTips({ workoutType }: { workoutType: string }) {
   const tips = {
     easy: [
       'Keep conversation pace - you should be able to talk easily',
@@ -428,4 +544,4 @@ function WorkoutTips({ workoutType }: { workoutType: string }) {
       ))}
     </div>
   )
-}
+})
