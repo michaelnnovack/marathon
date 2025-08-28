@@ -75,6 +75,7 @@ interface MetricCardProps {
   icon?: ReactNode
   className?: string
   loading?: boolean
+  trend?: 'positive' | 'negative' | 'neutral'
 }
 
 export function MetricCard({ 
@@ -83,7 +84,8 @@ export function MetricCard({
   subtitle, 
   icon, 
   className,
-  loading = false 
+  loading = false,
+  trend = 'neutral'
 }: MetricCardProps) {
   if (loading) {
     return (
@@ -100,13 +102,22 @@ export function MetricCard({
     )
   }
 
+  const trendColor = trend === 'positive' 
+    ? 'text-green-600 dark:text-green-400'
+    : trend === 'negative' 
+    ? 'text-red-600 dark:text-red-400'
+    : 'text-gray-600 dark:text-gray-400'
+
   return (
-    <Card className={className}>
+    <Card className={clsx(className, 
+      trend === 'positive' && 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10',
+      trend === 'negative' && 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10'
+    )}>
       <div className="flex items-center gap-2 text-sm opacity-70 mb-1">
         {icon}
         {title}
       </div>
-      <div className="text-2xl font-semibold">{value}</div>
+      <div className={clsx("text-2xl font-semibold", trendColor)}>{value}</div>
       {subtitle && (
         <div className="text-xs opacity-70 mt-1">{subtitle}</div>
       )}

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ActivitiesState, SimpleActivity } from '@/types'
+import { detectActivityPRs, detectWeeklyVolumePR } from '@/utils/prTracking'
 
 const KEY = 'mt_activities'
 
@@ -29,6 +30,67 @@ const loadDatabaseModule = async () => {
     }
   }
   return databaseModule
+}
+
+// Helper function to process activities and detect PRs
+const processActivitiesForPRs = async (activities: SimpleActivity[]) => {
+  if (typeof window === 'undefined' || activities.length === 0) return
+  
+  try {
+    // Dynamically import the user store to avoid circular dependency
+    const { useUserStore } = await import('./user')
+    const userStore = useUserStore.getState()
+    
+    const detectedPRs: any[] = []
+    
+    // Process each activity for potential PRs
+    for (const activity of activities.slice(-50)) { // Process last 50 activities to avoid performance issues
+      const activityPRs = detectActivityPRs(activity, userStore.prHistories, activities)
+      detectedPRs.push(...activityPRs)
+    }
+    
+    // Check for weekly volume PRs
+    const weeklyActivitiesMap = new Map<string, SimpleActivity[]>()
+    
+    // Group activities by week
+    activities.forEach(activity => {
+      if (!activity.date) return
+      
+      const date = new Date(activity.date)
+      const monday = new Date(date)
+      const day = monday.getDay() || 7
+      if (day !== 1) monday.setHours(-24 * (day - 1))
+      monday.setHours(0, 0, 0, 0)
+      const weekKey = monday.toISOString().slice(0, 10)
+      
+      if (!weeklyActivitiesMap.has(weekKey)) {
+        weeklyActivitiesMap.set(weekKey, [])
+      }
+      weeklyActivitiesMap.get(weekKey)!.push(activity)
+    })
+    
+    // Check last few weeks for volume PRs
+    const sortedWeeks = Array.from(weeklyActivitiesMap.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .slice(0, 8) // Last 8 weeks
+    
+    for (const [, weekActivities] of sortedWeeks) {
+      const existingWeeklyPR = userStore.prHistories.find(pr => pr.type === 'most_weekly_volume')
+      const weeklyPR = detectWeeklyVolumePR(weekActivities, existingWeeklyPR)
+      if (weeklyPR) {
+        detectedPRs.push(weeklyPR)
+      }
+    }
+    
+    // Add new PRs to the store
+    if (detectedPRs.length > 0) {
+      console.log(`Detected ${detectedPRs.length} new PRs`)
+      userStore.addPRData(detectedPRs)
+    }
+    
+  } catch (error) {
+    console.warn('Failed to process activities for PRs:', error)
+  }
 }
 
 export const useActivities = create<ActivitiesState>()((set, get) => ({
@@ -127,6 +189,9 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
                     error: undefined
                   })
                   
+                  // Process activities for PRs
+                  processActivitiesForPRs(dbActivities).catch(console.warn)
+                  
                   // Also refresh from intervals.icu in background
                   get().refreshFromIntervalsIcu(200).catch(console.warn)
                   return
@@ -204,6 +269,9 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
           error: undefined
         })
         
+        // Process activities for PRs
+        processActivitiesForPRs(activities).catch(console.warn)
+        
       } catch (error) {
         console.error('Failed to fetch activities from intervals.icu:', error)
         
@@ -243,6 +311,9 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
               error: 'Using localStorage cache - intervals.icu API unavailable',
               lastUpdated: new Date().toISOString(),
             })
+            
+            // Process cached activities for PRs
+            processActivitiesForPRs(cachedActivities).catch(console.warn)
             return
           }
         }
@@ -304,6 +375,9 @@ export const useActivities = create<ActivitiesState>()((set, get) => ({
           lastUpdated: new Date().toISOString(),
           error: undefined
         })
+        
+        // Process refreshed activities for PRs
+        processActivitiesForPRs(activities).catch(console.warn)
         
       } catch (error) {
         console.error('Failed to refresh activities from intervals.icu:', error)

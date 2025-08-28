@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { User, UserPreferences, UserStats, Achievement, PersonalRecord } from '@/types'
+import type { User, UserPreferences, UserStats, Achievement, PersonalRecord, PRData, PRHistory, PRAnalysis } from '@/types'
+import { buildPRHistories, analyzePRProgress } from '@/utils/prTracking'
 
 export interface UserProfile extends User {
   id: 'michael'
@@ -34,6 +35,9 @@ interface UserState {
   user: UserProfile | null
   achievements: Achievement[]
   personalRecords: PersonalRecord[]
+  prHistories: PRHistory[]
+  prData: PRData[]
+  prAnalysis?: PRAnalysis
   isLoading: boolean
   error: string | null
   updateUser: (updates: Partial<UserProfile>) => void
@@ -43,6 +47,9 @@ interface UserState {
   setGoalTime: (hhmmss: string) => void
   addAchievement: (achievement: Achievement) => void
   updatePersonalRecord: (record: PersonalRecord) => void
+  updatePRData: (prData: PRData) => void
+  addPRData: (prDataList: PRData[]) => void
+  analyzePRs: () => void
   hydrate: () => void
   clearError: () => void
 }
@@ -83,10 +90,18 @@ const persistPersonalRecords = (records: PersonalRecord[]) => {
   localStorage.setItem('mt_personal_records', JSON.stringify(records))
 }
 
+const persistPRData = (prData: PRData[]) => {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('mt_pr_data', JSON.stringify(prData))
+}
+
 export const useUserStore = create<UserState>((set, get) => ({
   user: null,
   achievements: [],
   personalRecords: [],
+  prHistories: [],
+  prData: [],
+  prAnalysis: undefined,
   isLoading: false,
   error: null,
   
@@ -179,6 +194,50 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ personalRecords: updatedRecords, error: null })
   },
   
+  updatePRData: (newPR) => {
+    const prData = get().prData
+    const updatedPRData = [...prData, newPR]
+    
+    persistPRData(updatedPRData)
+    
+    // Rebuild histories and analyze
+    const prHistories = buildPRHistories(updatedPRData)
+    const prAnalysis = analyzePRProgress(prHistories)
+    
+    set({ 
+      prData: updatedPRData,
+      prHistories,
+      prAnalysis,
+      error: null 
+    })
+  },
+  
+  addPRData: (newPRs) => {
+    const prData = get().prData
+    const updatedPRData = [...prData, ...newPRs]
+    
+    persistPRData(updatedPRData)
+    
+    // Rebuild histories and analyze
+    const prHistories = buildPRHistories(updatedPRData)
+    const prAnalysis = analyzePRProgress(prHistories)
+    
+    set({ 
+      prData: updatedPRData,
+      prHistories,
+      prAnalysis,
+      error: null 
+    })
+  },
+  
+  analyzePRs: () => {
+    const { prData } = get()
+    const prHistories = buildPRHistories(prData)
+    const prAnalysis = analyzePRProgress(prHistories)
+    
+    set({ prHistories, prAnalysis, error: null })
+  },
+  
   clearError: () => set({ error: null }),
   
   hydrate: () => {
@@ -213,10 +272,21 @@ export const useUserStore = create<UserState>((set, get) => ({
       const recordsRaw = localStorage.getItem('mt_personal_records')
       const personalRecords: PersonalRecord[] = recordsRaw ? JSON.parse(recordsRaw) : []
       
+      // Load PR data
+      const prDataRaw = localStorage.getItem('mt_pr_data')
+      const prData: PRData[] = prDataRaw ? JSON.parse(prDataRaw) : []
+      
+      // Build PR histories and analysis
+      const prHistories = buildPRHistories(prData)
+      const prAnalysis = prData.length > 0 ? analyzePRProgress(prHistories) : undefined
+      
       set({ 
         user, 
         achievements, 
-        personalRecords, 
+        personalRecords,
+        prData,
+        prHistories,
+        prAnalysis,
         isLoading: false, 
         error: null 
       })
@@ -227,7 +297,10 @@ export const useUserStore = create<UserState>((set, get) => ({
       set({ 
         user: michael, 
         achievements: [], 
-        personalRecords: [], 
+        personalRecords: [],
+        prData: [],
+        prHistories: [],
+        prAnalysis: undefined,
         isLoading: false, 
         error: 'Failed to load user data' 
       })

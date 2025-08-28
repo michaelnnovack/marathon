@@ -1,35 +1,73 @@
-import type { SimpleActivity, User, RaceReadinessScore } from '@/types'
+import type { SimpleActivity, User, RaceReadinessScore, PRAnalysis, TrainingStressBalance } from '@/types'
+import { getCurrentFitnessMetrics, calculateTrainingStressScore } from '@/lib/fitness/metrics'
+import { predictMarathonTime, calculatePersonalizedTrainingPaces, analyzeHeartRateDistribution } from '@/utils/predict'
+import {
+  analyzeSpeedWorkProgression,
+  analyzeRunningEconomy,
+  assessNeuromuscularReadiness,
+  calculateEnhancedTrainingConsistency,
+  assessTrainingLoadManagement,
+  assessComprehensiveInjuryRisk,
+  assessRecoveryPatterns
+} from './raceReadinessHelpers'
+import {
+  estimateTrainingAdherence,
+  estimateWorkoutCompletion,
+  assessLongRunExperience,
+  assessRaceSimulationQuality,
+  assessMentalReadiness
+} from './mentalPreparationHelpers'
 
 /**
- * Race Readiness Assessment System
- * Evaluates marathon readiness across 5 key dimensions
+ * Enhanced Race Readiness Assessment System
+ * 
+ * Evaluates marathon readiness across 5 research-based dimensions:
+ * 1. Aerobic Base (40% weight) - CTL, volume consistency, easy pace efficiency, aerobic decoupling
+ * 2. Lactate Threshold (25% weight) - tempo progression, threshold power, race pace confidence  
+ * 3. Neuromuscular Power (15% weight) - speed work frequency, running economy, interval progression
+ * 4. Strength & Mobility (10% weight) - injury history, training load progression, consistency
+ * 5. Mental Preparation (10% weight) - training adherence, race experience, long run confidence
+ * 
+ * Uses actual intervals.icu training data for evidence-based scoring.
  */
 
 export async function assessRaceReadiness(
   activities: SimpleActivity[],
-  user: User
+  user: User,
+  prAnalysis?: PRAnalysis,
+  targetTrainingPlan?: { adherenceRate?: number; completionRate?: number }
 ): Promise<RaceReadinessScore> {
-  console.log('🎯 Assessing race readiness across 5 dimensions...')
+  console.log('🎯 Assessing race readiness across 5 research-based dimensions...')
   
   const now = new Date()
   const raceDate = user.raceDate ? new Date(user.raceDate) : new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000)
   const daysToRace = Math.ceil((raceDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
   
   // Get relevant training windows
+  const last16Weeks = getActivitiesInWindow(activities, 112) // 16 weeks for base building analysis
   const last12Weeks = getActivitiesInWindow(activities, 84) // 12 weeks
+  const last8Weeks = getActivitiesInWindow(activities, 56) // 8 weeks
   const last6Weeks = getActivitiesInWindow(activities, 42) // 6 weeks
   const last4Weeks = getActivitiesInWindow(activities, 28) // 4 weeks
   
+  // Get current fitness metrics for CTL/ATL analysis
+  const currentFitness = await getCurrentFitnessMetrics()
+  
+  // Calculate training stress data
+  const tssData = calculateTSSForActivities(activities, user)
+  
+  console.log(`📊 Training data: ${activities.length} activities, ${daysToRace} days to race`)
+  
   const components = {
-    aerobicBase: assessAerobicBase(last12Weeks, user),
-    lactateThreshold: assessLactateThreshold(last6Weeks, user),
-    neuromuscularPower: assessNeuromuscularPower(last4Weeks, user),
-    strengthMobility: assessStrengthMobility(last12Weeks, user),
-    mentalPreparation: assessMentalPreparation(last12Weeks, user, daysToRace)
+    aerobicBase: await assessAerobicBase(last16Weeks, last12Weeks, user, currentFitness, tssData, prAnalysis),
+    lactateThreshold: await assessLactateThreshold(last8Weeks, last6Weeks, user, tssData, prAnalysis),
+    neuromuscularPower: await assessNeuromuscularPower(last6Weeks, last4Weeks, user, prAnalysis),
+    strengthMobility: await assessStrengthMobility(last12Weeks, user, currentFitness, prAnalysis),
+    mentalPreparation: await assessMentalPreparation(last12Weeks, user, daysToRace, targetTrainingPlan)
   }
   
   const overall = calculateOverallScore(components, daysToRace)
-  const recommendations = generateRecommendations(components, daysToRace)
+  const recommendations = generateRecommendations(components, daysToRace, prAnalysis)
   
   console.log('Race readiness scores:', {
     overall: Math.round(overall),
@@ -58,156 +96,299 @@ function getActivitiesInWindow(activities: SimpleActivity[], days: number): Simp
 }
 
 /**
- * Aerobic Base Assessment (0-100)
- * Based on weekly mileage trends, long run consistency, and easy pace development
+ * Enhanced Aerobic Base Assessment (0-100)
+ * Research-based scoring using:
+ * - Chronic Training Load (CTL) trends (30 points)
+ * - Weekly volume consistency and progression (25 points) 
+ * - Easy pace efficiency and aerobic decoupling (25 points)
+ * - Long run development and aerobic capacity (20 points)
  */
-function assessAerobicBase(activities: SimpleActivity[], user: User): number {
-  if (activities.length === 0) return 0
+async function assessAerobicBase(
+  activities16weeks: SimpleActivity[], 
+  activities12weeks: SimpleActivity[], 
+  user: User,
+  currentFitness: any,
+  tssData: Map<string, number>,
+  prAnalysis?: PRAnalysis
+): Promise<number> {
+  if (activities12weeks.length === 0) return 0
   
   let score = 0
   const maxScore = 100
   
-  // 1. Weekly Mileage Consistency (40 points)
-  const weeklyMileages = calculateWeeklyMileages(activities, 12)
-  const avgWeeklyMileage = weeklyMileages.reduce((sum, w) => sum + w, 0) / weeklyMileages.length
-  const mileageStability = calculateStability(weeklyMileages)
+  console.log('🏃‍♂️ Aerobic Base Assessment:')
   
-  // Target based on user level
-  const targetMileage = getTargetMileage(user.level)
-  const mileageScore = Math.min(40, (avgWeeklyMileage / targetMileage) * 30 + mileageStability * 10)
-  score += mileageScore
-  
-  // 2. Long Run Development (30 points)
-  const longRuns = activities.filter(a => (a.distance || 0) >= 15000) // 15km+
-  const longestRun = Math.max(...activities.map(a => (a.distance || 0) / 1000))
-  
-  const longRunFrequency = longRuns.length / 12 // per week average
-  const longRunDistance = Math.min(30, longestRun) / 30 // max 30km for full score
-  
-  score += longRunFrequency * 15 + longRunDistance * 15
-  
-  // 3. Easy Pace Development (30 points)
-  const easyRuns = activities.filter(a => isEasyEffort(a, user))
-  const easyPaceProgression = analyzeEasyPaceProgression(easyRuns)
-  
-  score += Math.min(30, easyRuns.length / activities.length * 40 + easyPaceProgression * 10)
-  
-  return Math.min(maxScore, Math.max(0, score))
-}
-
-/**
- * Lactate Threshold Assessment (0-100)
- * Based on tempo work frequency, threshold pace development, and race pace confidence
- */
-function assessLactateThreshold(activities: SimpleActivity[], user: User): number {
-  if (activities.length === 0) return 0
-  
-  let score = 0
-  const maxScore = 100
-  
-  // 1. Tempo/Threshold Work Frequency (50 points)
-  const tempoRuns = activities.filter(a => isTempoEffort(a, user))
-  const tempoFrequency = tempoRuns.length / 6 // per week over 6 weeks
-  score += Math.min(25, tempoFrequency * 12.5) // 2 tempo sessions/week = max
-  
-  // 2. Threshold Pace Development (30 points)
-  const tempoPaceProgression = analyzeTempoPaceProgression(tempoRuns)
-  score += tempoPaceProgression * 30
-  
-  // 3. Marathon Pace Confidence (20 points)
-  const marathonPaceRuns = activities.filter(a => isMarathonPaceEffort(a, user))
-  const marathonPaceConfidence = marathonPaceRuns.length >= 4 ? 20 : marathonPaceRuns.length * 5
-  score += marathonPaceConfidence
-  
-  return Math.min(maxScore, Math.max(0, score))
-}
-
-/**
- * Neuromuscular Power Assessment (0-100) 
- * Based on speed work, interval training, and finishing speed development
- */
-function assessNeuromuscularPower(activities: SimpleActivity[], user: User): number {
-  if (activities.length === 0) return 0
-  
-  let score = 0
-  const maxScore = 100
-  
-  // 1. Speed Work Frequency (40 points)
-  const speedRuns = activities.filter(a => isSpeedWork(a, user))
-  const speedFrequency = speedRuns.length / 4 // per week over 4 weeks
-  score += Math.min(30, speedFrequency * 15) // 2 sessions/week = max
-  
-  // 2. Interval Performance (40 points)
-  const intervalRuns = activities.filter(a => isIntervalWork(a, user))
-  if (intervalRuns.length > 0) {
-    const intervalPaceProgression = analyzeIntervalProgression(intervalRuns)
-    score += intervalPaceProgression * 40
+  // 1. Chronic Training Load (CTL) Analysis (30 points)
+  let ctlScore = 0
+  if (currentFitness?.ctl) {
+    const ctl = currentFitness.ctl
+    const targetCTL = getTargetCTL(user.level)
+    
+    // CTL adequacy (15 points)
+    ctlScore += Math.min(15, (ctl / targetCTL) * 15)
+    
+    // CTL progression over 12 weeks (15 points)
+    const ctlProgression = analyzeCTLProgression(tssData, 12)
+    ctlScore += ctlProgression * 15
+    
+    console.log(`  CTL: ${Math.round(ctl)} (target: ${targetCTL}) -> ${Math.round(ctlScore)} points`)
   } else {
-    score += 10 // minimal score for no intervals
+    // Fallback to volume analysis if no CTL data
+    const weeklyMileages = calculateWeeklyMileages(activities12weeks, 12)
+    const avgWeeklyMileage = weeklyMileages.reduce((sum, w) => sum + w, 0) / weeklyMileages.length
+    const targetMileage = getTargetMileage(user.level)
+    ctlScore = Math.min(30, (avgWeeklyMileage / targetMileage) * 30)
+    
+    console.log(`  Volume: ${Math.round(avgWeeklyMileage)}km/week (target: ${targetMileage}) -> ${Math.round(ctlScore)} points`)
+  }
+  score += ctlScore
+  
+  // 2. Weekly Volume Consistency and Progression (25 points)
+  const weeklyMileages = calculateWeeklyMileages(activities12weeks, 12)
+  const mileageConsistency = calculateMileageConsistency(weeklyMileages)
+  const mileageProgression = calculateMileageProgression(weeklyMileages)
+  
+  const volumeScore = mileageConsistency * 15 + mileageProgression * 10
+  score += volumeScore
+  
+  console.log(`  Volume consistency: ${Math.round(mileageConsistency * 100)}%, progression: ${Math.round(mileageProgression * 100)}% -> ${Math.round(volumeScore)} points`)
+  
+  // 3. Easy Pace Efficiency and Aerobic Decoupling (25 points)
+  const aerobicEfficiencyScore = await analyzeAerobicEfficiency(activities12weeks, user)
+  score += aerobicEfficiencyScore * 25
+  
+  console.log(`  Aerobic efficiency: ${Math.round(aerobicEfficiencyScore * 100)}% -> ${Math.round(aerobicEfficiencyScore * 25)} points`)
+  
+  // 4. Long Run Development and Aerobic Capacity (20 points)
+  const longRunScore = assessLongRunDevelopment(activities12weeks, user)
+  score += longRunScore
+  
+  console.log(`  Long run development: ${Math.round(longRunScore)} points`)
+  
+  const finalScore = Math.min(maxScore, Math.max(0, score))
+  console.log(`  🎯 Aerobic Base Total: ${Math.round(finalScore)}/100`)
+  
+  return finalScore
+}
+
+/**
+ * Enhanced Lactate Threshold Assessment (0-100)
+ * Research-based scoring using:
+ * - Tempo work frequency and quality (40 points)
+ * - Threshold pace progression and consistency (35 points) 
+ * - Marathon pace confidence and execution (25 points)
+ */
+async function assessLactateThreshold(
+  activities8weeks: SimpleActivity[],
+  activities6weeks: SimpleActivity[], 
+  user: User,
+  tssData: Map<string, number>,
+  prAnalysis?: PRAnalysis
+): Promise<number> {
+  if (activities6weeks.length === 0) return 0
+  
+  let score = 0
+  const maxScore = 100
+  
+  console.log('🔥 Lactate Threshold Assessment:')
+  
+  // 1. Tempo Work Frequency and Quality (40 points)
+  const tempoRuns = activities8weeks.filter(a => isTempoEffort(a, user))
+  const intervalRuns = activities8weeks.filter(a => isIntervalWork(a, user))
+  const thresholdRuns = [...tempoRuns, ...intervalRuns]
+  
+  // Frequency score (20 points) - target 1-2 threshold sessions per week
+  const weeklyThresholdFreq = thresholdRuns.length / 8
+  const frequencyScore = Math.min(20, weeklyThresholdFreq * 12) // 1.67/week = max
+  score += frequencyScore
+  
+  // Quality score (20 points) - based on workout duration and intensity
+  const qualityScore = assessThresholdWorkoutQuality(thresholdRuns, user)
+  score += qualityScore
+  
+  console.log(`  Threshold frequency: ${Math.round(weeklyThresholdFreq * 10) / 10}/week, quality: ${Math.round(qualityScore)} -> ${Math.round(frequencyScore + qualityScore)} points`)
+  
+  // 2. Threshold Pace Progression and Consistency (35 points)
+  const paceProgression = analyzeThresholdPaceProgression(thresholdRuns, user)
+  const paceConsistency = analyzeThresholdPaceConsistency(thresholdRuns, user)
+  
+  const paceScore = paceProgression * 20 + paceConsistency * 15
+  score += paceScore
+  
+  console.log(`  Pace progression: ${Math.round(paceProgression * 100)}%, consistency: ${Math.round(paceConsistency * 100)}% -> ${Math.round(paceScore)} points`)
+  
+  // 3. Marathon Pace Confidence and Execution (25 points)
+  const marathonPaceScore = assessMarathonPaceConfidence(activities8weeks, user)
+  score += marathonPaceScore
+  
+  console.log(`  Marathon pace confidence: ${Math.round(marathonPaceScore)} points`)
+  
+  const finalScore = Math.min(maxScore, Math.max(0, score))
+  console.log(`  🎯 Lactate Threshold Total: ${Math.round(finalScore)}/100`)
+  
+  return finalScore
+}
+
+/**
+ * Enhanced Neuromuscular Power Assessment (0-100)
+ * Research-based scoring using:
+ * - Speed work frequency and progression (40 points)
+ * - Running economy and efficiency trends (35 points)
+ * - Neuromuscular readiness and power development (25 points)
+ */
+async function assessNeuromuscularPower(
+  activities6weeks: SimpleActivity[],
+  activities4weeks: SimpleActivity[],
+  user: User,
+  prAnalysis?: PRAnalysis
+): Promise<number> {
+  if (activities4weeks.length === 0) return 0
+  
+  let score = 0
+  const maxScore = 100
+  
+  console.log('⚡ Neuromuscular Power Assessment:')
+  
+  // 1. Speed Work Frequency and Progression (40 points)
+  const speedRuns = activities6weeks.filter(a => isSpeedWork(a, user))
+  const recentSpeedRuns = activities4weeks.filter(a => isSpeedWork(a, user))
+  
+  // Frequency score (20 points)
+  const weeklySpeedFreq = speedRuns.length / 6
+  const frequencyScore = Math.min(20, weeklySpeedFreq * 20) // 1/week = max
+  score += frequencyScore
+  
+  // Progression score (20 points)
+  const speedProgression = analyzeSpeedWorkProgression(speedRuns)
+  score += speedProgression * 20
+  
+  console.log(`  Speed frequency: ${Math.round(weeklySpeedFreq * 10) / 10}/week, progression: ${Math.round(speedProgression * 100)}% -> ${Math.round(frequencyScore + speedProgression * 20)} points`)
+  
+  // 2. Running Economy and Efficiency Trends (35 points)
+  const economyScore = await analyzeRunningEconomy(activities6weeks, user)
+  score += economyScore * 35
+  
+  console.log(`  Running economy: ${Math.round(economyScore * 100)}% -> ${Math.round(economyScore * 35)} points`)
+  
+  // 3. Neuromuscular Readiness and Power (25 points)
+  const powerScore = assessNeuromuscularReadiness(recentSpeedRuns, user)
+  score += powerScore
+  
+  console.log(`  Neuromuscular power: ${Math.round(powerScore)} points`)
+  
+  const finalScore = Math.min(maxScore, Math.max(0, score))
+  console.log(`  🎯 Neuromuscular Power Total: ${Math.round(finalScore)}/100`)
+  
+  return finalScore
+}
+
+/**
+ * Enhanced Strength & Mobility Assessment (0-100)
+ * Research-based scoring using:
+ * - Training consistency and load management (40 points)
+ * - Injury risk factors and progression sustainability (35 points)
+ * - Recovery patterns and training stress balance (25 points)
+ */
+async function assessStrengthMobility(
+  activities: SimpleActivity[], 
+  user: User,
+  currentFitness: any,
+  prAnalysis?: PRAnalysis
+): Promise<number> {
+  let score = 0
+  const maxScore = 100
+  
+  console.log('💪 Strength & Mobility Assessment:')
+  
+  // 1. Training Consistency and Load Management (40 points)
+  const consistency = calculateEnhancedTrainingConsistency(activities, 12)
+  const loadManagement = assessTrainingLoadManagement(activities, currentFitness)
+  
+  const consistencyScore = consistency * 25 + loadManagement * 15
+  score += consistencyScore
+  
+  console.log(`  Consistency: ${Math.round(consistency * 100)}%, load management: ${Math.round(loadManagement * 100)}% -> ${Math.round(consistencyScore)} points`)
+  
+  // 2. Injury Risk Factors and Progression Sustainability (35 points)
+  const injuryRisk = assessComprehensiveInjuryRisk(activities, currentFitness, prAnalysis)
+  const sustainabilityScore = (1 - injuryRisk) * 35
+  score += sustainabilityScore
+  
+  console.log(`  Injury risk: ${Math.round(injuryRisk * 100)}% -> ${Math.round(sustainabilityScore)} points`)
+  
+  // 3. Recovery Patterns and Training Stress Balance (25 points)
+  const recoveryScore = assessRecoveryPatterns(activities, currentFitness)
+  score += recoveryScore * 25
+  
+  console.log(`  Recovery patterns: ${Math.round(recoveryScore * 100)}% -> ${Math.round(recoveryScore * 25)} points`)
+  
+  const finalScore = Math.min(maxScore, Math.max(0, score))
+  console.log(`  🎯 Strength & Mobility Total: ${Math.round(finalScore)}/100`)
+  
+  return finalScore
+}
+
+/**
+ * Enhanced Mental Preparation Assessment (0-100)
+ * Research-based scoring using:
+ * - Training plan adherence and completion rates (40 points)
+ * - Long run experience and race simulation (35 points)
+ * - Mental readiness and confidence indicators (25 points)
+ */
+async function assessMentalPreparation(
+  activities: SimpleActivity[], 
+  user: User, 
+  daysToRace: number,
+  targetTrainingPlan?: { adherenceRate?: number; completionRate?: number }
+): Promise<number> {
+  let score = 0
+  const maxScore = 100
+  
+  console.log('🧠 Mental Preparation Assessment:')
+  
+  // 1. Training Plan Adherence and Completion Rates (40 points)
+  let adherenceScore = 0
+  if (targetTrainingPlan?.adherenceRate !== undefined) {
+    adherenceScore = Math.min(25, targetTrainingPlan.adherenceRate * 25)
+  } else {
+    // Fallback: estimate adherence from activity consistency
+    const estimatedAdherence = estimateTrainingAdherence(activities)
+    adherenceScore = estimatedAdherence * 25
   }
   
-  // 3. Speed Endurance (20 points)
-  const speedEnduranceRuns = activities.filter(a => 
-    (a.distance || 0) >= 5000 && (a.distance || 0) <= 10000 && isTempoEffort(a, user)
-  )
-  score += Math.min(20, speedEnduranceRuns.length * 5)
-  
-  return Math.min(maxScore, Math.max(0, score))
-}
-
-/**
- * Strength & Mobility Assessment (0-100)
- * Based on training consistency, injury history, and progression sustainability
- */
-function assessStrengthMobility(activities: SimpleActivity[], user: User): number {
-  let score = 0
-  const maxScore = 100
-  
-  // 1. Training Consistency (50 points)
-  const weeklyConsistency = calculateTrainingConsistency(activities, 12)
-  score += weeklyConsistency * 50
-  
-  // 2. Injury Risk Factors (30 points)
-  const injuryRisk = assessTrainingLoadProgression(activities)
-  score += (1 - injuryRisk) * 30 // inverse of risk
-  
-  // 3. Volume Progression (20 points)
-  const progressionScore = assessVolumeProgression(activities)
-  score += progressionScore * 20
-  
-  return Math.min(maxScore, Math.max(0, score))
-}
-
-/**
- * Mental Preparation Assessment (0-100)
- * Based on long run experience, race simulation, and confidence building
- */
-function assessMentalPreparation(activities: SimpleActivity[], user: User, daysToRace: number): number {
-  let score = 0
-  const maxScore = 100
-  
-  // 1. Long Run Experience (40 points)
-  const longRuns = activities.filter(a => (a.distance || 0) >= 20000) // 20km+
-  const veryLongRuns = activities.filter(a => (a.distance || 0) >= 28000) // 28km+
-  
-  score += Math.min(25, longRuns.length * 3) // up to 8 long runs
-  score += Math.min(15, veryLongRuns.length * 5) // up to 3 very long runs
-  
-  // 2. Race Pace Experience (30 points)
-  const racePaceExperience = activities.filter(a => 
-    (a.distance || 0) >= 15000 && isMarathonPaceEffort(a, user)
-  )
-  score += Math.min(30, racePaceExperience.length * 7.5)
-  
-  // 3. Tapering Appropriateness (30 points)
-  if (daysToRace <= 21) {
-    const taperScore = assessTaperingQuality(activities, daysToRace)
-    score += taperScore * 30
+  let completionScore = 0
+  if (targetTrainingPlan?.completionRate !== undefined) {
+    completionScore = Math.min(15, targetTrainingPlan.completionRate * 15)
   } else {
-    score += 20 // not in taper yet, assume good
+    // Fallback: estimate completion from workout quality
+    const estimatedCompletion = estimateWorkoutCompletion(activities, user)
+    completionScore = estimatedCompletion * 15
   }
   
-  return Math.min(maxScore, Math.max(0, score))
+  const adherenceTotal = adherenceScore + completionScore
+  score += adherenceTotal
+  
+  console.log(`  Adherence: ${Math.round((adherenceScore / 25) * 100)}%, completion: ${Math.round((completionScore / 15) * 100)}% -> ${Math.round(adherenceTotal)} points`)
+  
+  // 2. Long Run Experience and Race Simulation (35 points)
+  const longRunExperience = assessLongRunExperience(activities, user)
+  const raceSimulation = assessRaceSimulationQuality(activities, user)
+  
+  const experienceScore = longRunExperience * 20 + raceSimulation * 15
+  score += experienceScore
+  
+  console.log(`  Long run experience: ${Math.round(longRunExperience * 100)}%, race simulation: ${Math.round(raceSimulation * 100)}% -> ${Math.round(experienceScore)} points`)
+  
+  // 3. Mental Readiness and Confidence Indicators (25 points)
+  const mentalReadiness = assessMentalReadiness(activities, user, daysToRace)
+  score += mentalReadiness * 25
+  
+  console.log(`  Mental readiness: ${Math.round(mentalReadiness * 100)}% -> ${Math.round(mentalReadiness * 25)} points`)
+  
+  const finalScore = Math.min(maxScore, Math.max(0, score))
+  console.log(`  🎯 Mental Preparation Total: ${Math.round(finalScore)}/100`)
+  
+  return finalScore
 }
 
 // Helper functions
@@ -356,6 +537,61 @@ function assessVolumeProgression(activities: SimpleActivity[]): number {
   return 0.3
 }
 
+/**
+ * Assess injury risk based on PR improvement patterns
+ * Returns risk score from 0 (low risk) to 1 (high risk)
+ */
+function assessPRInjuryRisk(prAnalysis?: PRAnalysis): number {
+  if (!prAnalysis) return 0.2 // Low baseline risk without PR data
+  
+  let riskScore = 0
+  const maxRisk = 1.0
+  
+  // Factor 1: Frequency of PRs (30% weight)
+  const prFrequency30Days = prAnalysis.improvements.count30Days
+  const prFrequency90Days = prAnalysis.improvements.count90Days
+  
+  if (prFrequency30Days >= 4) riskScore += 0.25 // Very high frequency
+  else if (prFrequency30Days >= 3) riskScore += 0.15 // High frequency
+  else if (prFrequency30Days >= 2) riskScore += 0.05 // Moderate frequency
+  
+  if (prFrequency90Days >= 8) riskScore += 0.05 // Sustained high PR activity
+  
+  // Factor 2: Magnitude of improvements (40% weight)
+  const avgImprovement = prAnalysis.improvements.averageImprovement
+  const significantImprovements = prAnalysis.improvements.significantImprovements.length
+  
+  if (avgImprovement > 15) riskScore += 0.30 // Very large improvements
+  else if (avgImprovement > 10) riskScore += 0.20 // Large improvements
+  else if (avgImprovement > 5) riskScore += 0.10 // Moderate improvements
+  
+  if (significantImprovements >= 3) riskScore += 0.10 // Multiple big improvements
+  
+  // Factor 3: Recent PR clustering (30% weight)
+  const recentPRs = prAnalysis.recentPRs.filter(pr => {
+    const prDate = new Date(pr.date)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    return prDate >= thirtyDaysAgo
+  })
+  
+  // Multiple PRs in short time window increases risk
+  if (recentPRs.length >= 3) {
+    const prDates = recentPRs.map(pr => new Date(pr.date).getTime()).sort()
+    const timeSpan = prDates[prDates.length - 1] - prDates[0]
+    const daysSpan = timeSpan / (24 * 60 * 60 * 1000)
+    
+    if (daysSpan <= 7) riskScore += 0.25 // PRs clustered in 1 week
+    else if (daysSpan <= 14) riskScore += 0.15 // PRs clustered in 2 weeks
+    else if (daysSpan <= 21) riskScore += 0.05 // PRs clustered in 3 weeks
+  }
+  
+  // Use the existing analysis risk score as a baseline
+  const analysisRisk = prAnalysis.injuryRiskFactors.riskScore / 100
+  riskScore = Math.max(riskScore, analysisRisk)
+  
+  return Math.min(maxRisk, riskScore)
+}
+
 function assessTaperingQuality(activities: SimpleActivity[], daysToRace: number): number {
   const recentWeekMileage = calculateWeeklyMileages(activities, 1)[0]
   const baselineMileage = calculateWeeklyMileages(activities, 8).slice(2, 6) // weeks 3-6 back
@@ -391,7 +627,7 @@ function calculateOverallScore(components: Record<string, number>, daysToRace: n
          mentalPreparation * weights.mentalPreparation
 }
 
-function generateRecommendations(components: Record<string, number>, daysToRace: number): string[] {
+function generateRecommendations(components: Record<string, number>, daysToRace: number, prAnalysis?: PRAnalysis): string[] {
   const recommendations: string[] = []
   const threshold = 70 // Score below this triggers recommendations
   
@@ -413,6 +649,23 @@ function generateRecommendations(components: Record<string, number>, daysToRace:
   if (components.strengthMobility < threshold) {
     recommendations.push('Focus on consistent training without dramatic mileage jumps')
     recommendations.push('Consider strength training and injury prevention work')
+    
+    // Add PR-specific injury risk recommendations
+    if (prAnalysis) {
+      const prRisk = prAnalysis.injuryRiskFactors.riskScore
+      if (prRisk > 60) {
+        recommendations.push('CAUTION: Multiple recent PRs detected - prioritize recovery and easy running')
+        recommendations.push('Consider reducing training intensity for 1-2 weeks to prevent overuse injury')
+      } else if (prRisk > 40) {
+        recommendations.push('Recent performance improvements noted - monitor for signs of overtraining')
+        recommendations.push('Ensure adequate sleep and nutrition to support recovery')
+      }
+      
+      // Add specific warnings from PR analysis
+      prAnalysis.injuryRiskFactors.warnings.forEach(warning => {
+        recommendations.push(`⚠️ ${warning}`)
+      })
+    }
   }
   
   if (components.mentalPreparation < threshold) {
@@ -431,4 +684,310 @@ function generateRecommendations(components: Record<string, number>, daysToRace:
   }
   
   return recommendations
+}
+
+// Enhanced Helper Functions for Research-Based Assessments
+
+// Training Stress Score calculations for activities
+function calculateTSSForActivities(activities: SimpleActivity[], user: User): Map<string, number> {
+  const tssMap = new Map<string, number>()
+  const thresholdHR = user.maxHeartRate ? user.maxHeartRate * 0.85 : 170
+  
+  activities.forEach(activity => {
+    if (activity.date) {
+      const tssData = calculateTrainingStressScore(activity, thresholdHR)
+      const date = activity.date.split('T')[0]
+      const existing = tssMap.get(date) || 0
+      tssMap.set(date, existing + tssData.tss)
+    }
+  })
+  
+  return tssMap
+}
+
+// CTL progression analysis
+function analyzeCTLProgression(tssData: Map<string, number>, weeks: number): number {
+  const dates = Array.from(tssData.keys()).sort()
+  if (dates.length < weeks * 3) return 0.3 // Not enough data
+  
+  const recentDates = dates.slice(-weeks * 7)
+  const olderDates = dates.slice(-weeks * 14, -weeks * 7)
+  
+  if (olderDates.length === 0) return 0.5
+  
+  const recentAvg = recentDates.reduce((sum, date) => sum + (tssData.get(date) || 0), 0) / recentDates.length
+  const olderAvg = olderDates.reduce((sum, date) => sum + (tssData.get(date) || 0), 0) / olderDates.length
+  
+  if (olderAvg === 0) return 0.5
+  
+  const progression = (recentAvg - olderAvg) / olderAvg
+  // Ideal progression is 5-15% improvement
+  if (progression >= 0.05 && progression <= 0.15) return 1.0
+  if (progression >= 0 && progression <= 0.25) return 0.8
+  if (progression >= -0.05 && progression < 0) return 0.6
+  return 0.3
+}
+
+// Target CTL based on user level
+function getTargetCTL(level: string): number {
+  switch (level) {
+    case 'beginner': return 40
+    case 'intermediate': return 65
+    case 'advanced': return 85
+    default: return 55
+  }
+}
+
+// Enhanced mileage consistency analysis
+function calculateMileageConsistency(weeklyMileages: number[]): number {
+  if (weeklyMileages.length < 4) return 0
+  
+  const nonZeroWeeks = weeklyMileages.filter(w => w > 0)
+  if (nonZeroWeeks.length < 3) return 0
+  
+  const mean = nonZeroWeeks.reduce((sum, w) => sum + w, 0) / nonZeroWeeks.length
+  const variance = nonZeroWeeks.reduce((sum, w) => sum + Math.pow(w - mean, 2), 0) / nonZeroWeeks.length
+  const cv = Math.sqrt(variance) / mean // coefficient of variation
+  
+  // Consistency score: lower CV = higher consistency
+  return Math.max(0, 1 - Math.min(cv, 1))
+}
+
+// Mileage progression analysis
+function calculateMileageProgression(weeklyMileages: number[]): number {
+  if (weeklyMileages.length < 6) return 0.5
+  
+  const firstHalf = weeklyMileages.slice(0, Math.floor(weeklyMileages.length / 2))
+  const secondHalf = weeklyMileages.slice(Math.floor(weeklyMileages.length / 2))
+  
+  const firstAvg = firstHalf.reduce((sum, w) => sum + w, 0) / firstHalf.length
+  const secondAvg = secondHalf.reduce((sum, w) => sum + w, 0) / secondHalf.length
+  
+  if (firstAvg === 0) return 0.5
+  
+  const progression = (secondAvg - firstAvg) / firstAvg
+  
+  // Ideal progression is 5-20% over time period
+  if (progression >= 0.05 && progression <= 0.20) return 1.0
+  if (progression >= 0 && progression <= 0.30) return 0.8
+  if (progression >= -0.05 && progression < 0) return 0.6
+  return 0.3
+}
+
+function assessLongRunDevelopment(activities: SimpleActivity[], user: User): number {
+  const longRuns = activities.filter(a => (a.distance || 0) >= 15000) // 15km+
+  const veryLongRuns = activities.filter(a => (a.distance || 0) >= 25000) // 25km+
+  const longestRun = Math.max(0, ...activities.map(a => (a.distance || 0) / 1000))
+  
+  let score = 0
+  
+  // Long run frequency (8 points) - target 1 per week
+  const weeklyLongRunFreq = longRuns.length / 12
+  score += Math.min(8, weeklyLongRunFreq * 8)
+  
+  // Very long run experience (6 points) - marathon-specific
+  score += Math.min(6, veryLongRuns.length * 2)
+  
+  // Longest run distance (6 points) - up to 32km for full points
+  score += Math.min(6, (longestRun / 32) * 6)
+  
+  return score
+}
+
+// Helper function to analyze aerobic efficiency
+async function analyzeAerobicEfficiency(activities: SimpleActivity[], user: User): Promise<number> {
+  const easyRuns = activities.filter(a => isEasyEffort(a, user) && a.distance && a.duration && (a.distance || 0) >= 5000)
+  
+  if (easyRuns.length < 5) return 0.3 // Minimal score if insufficient data
+  
+  // Analyze pace progression at easy effort
+  const easyPaceProgression = analyzeEasyPaceProgression(easyRuns)
+  
+  // Analyze aerobic decoupling in long runs
+  const aerobicDecoupling = analyzeAerobicDecoupling(easyRuns, user)
+  
+  // Heart rate efficiency trend
+  const hrEfficiency = analyzeHeartRateEfficiency(easyRuns, user)
+  
+  // Weighted combination
+  return (easyPaceProgression * 0.4) + (aerobicDecoupling * 0.4) + (hrEfficiency * 0.2)
+}
+
+// Analyze aerobic decoupling in long runs
+function analyzeAerobicDecoupling(activities: SimpleActivity[], user: User): number {
+  const longEasyRuns = activities.filter(a => 
+    (a.distance || 0) >= 15000 && // 15km+ runs
+    a.avgHr && a.maxHr && a.duration && a.distance &&
+    isEasyEffort(a, user)
+  )
+  
+  if (longEasyRuns.length < 3) return 0.4 // Insufficient data
+  
+  let totalDecouplingScore = 0
+  let validRuns = 0
+  
+  longEasyRuns.forEach(run => {
+    // Estimate decoupling (simplified - in reality would need split data)
+    const hrRange = (run.maxHr! - (run.avgHr! * 0.9)) / run.avgHr!
+    const decouplingScore = Math.max(0, 1 - hrRange) // Lower HR drift = better aerobic efficiency
+    
+    totalDecouplingScore += decouplingScore
+    validRuns++
+  })
+  
+  return validRuns > 0 ? totalDecouplingScore / validRuns : 0.4
+}
+
+// Analyze heart rate efficiency trends
+function analyzeHeartRateEfficiency(activities: SimpleActivity[], user: User): number {
+  const runsWithHR = activities.filter(a => 
+    a.avgHr && a.duration && a.distance && 
+    (a.distance || 0) >= 3000 // 3km+ for meaningful data
+  )
+  
+  if (runsWithHR.length < 4 || !user.maxHeartRate) return 0.5
+  
+  // Calculate pace/HR efficiency for each run
+  const efficiencyScores = runsWithHR.map(run => {
+    const pace = run.duration! / (run.distance! / 1000) // sec/km
+    const hrPercent = run.avgHr! / user.maxHeartRate!
+    
+    // Lower pace (faster) at lower HR% = better efficiency
+    return (400 - pace) / (hrPercent * 500) // Normalized efficiency score
+  })
+  
+  // Analyze trend
+  const recent = efficiencyScores.slice(0, Math.floor(efficiencyScores.length / 2))
+  const older = efficiencyScores.slice(Math.floor(efficiencyScores.length / 2))
+  
+  const recentAvg = recent.reduce((sum, e) => sum + e, 0) / recent.length
+  const olderAvg = older.reduce((sum, e) => sum + e, 0) / older.length
+  
+  // Improvement = higher efficiency score
+  const improvement = (recentAvg - olderAvg) / olderAvg
+  
+  if (improvement > 0.05) return 1.0
+  if (improvement > 0.02) return 0.8
+  if (improvement > -0.02) return 0.6
+  return 0.3
+}
+
+// Assess threshold workout quality
+function assessThresholdWorkoutQuality(runs: SimpleActivity[], user: User): number {
+  if (runs.length === 0) return 0
+  
+  let totalQuality = 0
+  
+  runs.forEach(run => {
+    let quality = 0
+    
+    // Duration quality (0-0.4)
+    const durationMinutes = (run.duration || 0) / 60
+    if (durationMinutes >= 45) quality += 0.4
+    else if (durationMinutes >= 30) quality += 0.3
+    else if (durationMinutes >= 20) quality += 0.2
+    else quality += 0.1
+    
+    // Intensity quality (0-0.4)
+    if (run.avgHr && user.maxHeartRate) {
+      const hrPercent = run.avgHr / user.maxHeartRate
+      if (hrPercent >= 0.85 && hrPercent <= 0.92) quality += 0.4 // Perfect threshold zone
+      else if (hrPercent >= 0.80 && hrPercent <= 0.95) quality += 0.3
+      else if (hrPercent >= 0.75 && hrPercent <= 0.98) quality += 0.2
+      else quality += 0.1
+    } else {
+      quality += 0.2 // Default if no HR data
+    }
+    
+    // Distance quality (0-0.2)
+    const distance = run.distance || 0
+    if (distance >= 8000) quality += 0.2
+    else if (distance >= 5000) quality += 0.15
+    else if (distance >= 3000) quality += 0.1
+    else quality += 0.05
+    
+    totalQuality += quality
+  })
+  
+  const avgQuality = totalQuality / runs.length
+  return Math.min(20, avgQuality * 20) // Scale to 20 points max
+}
+
+// Analyze threshold pace progression
+function analyzeThresholdPaceProgression(runs: SimpleActivity[], user: User): number {
+  if (runs.length < 3) return 0.3
+  
+  const sortedRuns = runs
+    .filter(r => r.date && r.duration && r.distance)
+    .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime())
+  
+  const paces = sortedRuns.map(r => r.duration! / (r.distance! / 1000))
+  
+  if (paces.length < 3) return 0.3
+  
+  // Compare recent vs older paces
+  const recentPaces = paces.slice(0, Math.ceil(paces.length / 2))
+  const olderPaces = paces.slice(Math.ceil(paces.length / 2))
+  
+  const recentAvg = recentPaces.reduce((sum, p) => sum + p, 0) / recentPaces.length
+  const olderAvg = olderPaces.reduce((sum, p) => sum + p, 0) / olderPaces.length
+  
+  const improvement = (olderAvg - recentAvg) / olderAvg
+  
+  if (improvement > 0.03) return 1.0 // 3%+ improvement
+  if (improvement > 0.01) return 0.8 // 1-3% improvement  
+  if (improvement > -0.01) return 0.6 // Stable
+  return 0.3 // Getting slower
+}
+
+// Analyze threshold pace consistency
+function analyzeThresholdPaceConsistency(runs: SimpleActivity[], user: User): number {
+  if (runs.length < 3) return 0.3
+  
+  const paces = runs
+    .filter(r => r.duration && r.distance)
+    .map(r => r.duration! / (r.distance! / 1000))
+  
+  if (paces.length < 3) return 0.3
+  
+  const mean = paces.reduce((sum, p) => sum + p, 0) / paces.length
+  const variance = paces.reduce((sum, p) => sum + Math.pow(p - mean, 2), 0) / paces.length
+  const cv = Math.sqrt(variance) / mean
+  
+  // Lower coefficient of variation = higher consistency
+  if (cv < 0.05) return 1.0 // Very consistent (within 5%)
+  if (cv < 0.08) return 0.8 // Good consistency  
+  if (cv < 0.12) return 0.6 // Moderate consistency
+  return 0.3 // Poor consistency
+}
+
+// Assess marathon pace confidence
+function assessMarathonPaceConfidence(activities: SimpleActivity[], user: User): number {
+  const marathonPaceRuns = activities.filter(a => 
+    (a.distance || 0) >= 8000 && // 8km+ for meaningful marathon pace work
+    isMarathonPaceEffort(a, user)
+  )
+  
+  let score = 0
+  
+  // Frequency score (15 points) - target 4+ marathon pace runs
+  const frequencyScore = Math.min(15, marathonPaceRuns.length * 3)
+  score += frequencyScore
+  
+  if (marathonPaceRuns.length > 0) {
+    // Long marathon pace runs (5 points) - 15km+ at marathon pace
+    const longMarathonRuns = marathonPaceRuns.filter(r => (r.distance || 0) >= 15000)
+    score += Math.min(5, longMarathonRuns.length * 2.5)
+    
+    // Consistency score (5 points)
+    const paces = marathonPaceRuns.map(r => r.duration! / (r.distance! / 1000))
+    const mean = paces.reduce((sum, p) => sum + p, 0) / paces.length
+    const cv = Math.sqrt(paces.reduce((sum, p) => sum + Math.pow(p - mean, 2), 0) / paces.length) / mean
+    
+    if (cv < 0.04) score += 5 // Very consistent
+    else if (cv < 0.06) score += 3 // Good consistency
+    else if (cv < 0.08) score += 1 // Moderate consistency
+  }
+  
+  return Math.min(25, score)
 }

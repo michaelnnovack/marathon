@@ -235,17 +235,83 @@ export interface PersonalRecord {
   previousRecord?: number
 }
 
+// Enhanced PR Types (imported from prTracking.ts)
+export type PRType = 
+  | 'fastest_1k'
+  | 'fastest_5k' 
+  | 'fastest_10k'
+  | 'fastest_half_marathon'
+  | 'fastest_marathon'
+  | 'longest_run'
+  | 'most_weekly_volume'
+  | 'most_elevation_gain'
+
+export interface PRData {
+  id: string
+  type: PRType
+  distance: RaceDistance | 'longest_run' | 'weekly_volume' | 'elevation'
+  value: number // seconds for time PRs, meters for distance, elevation
+  pace?: number // seconds per km for time-based PRs
+  date: string
+  activityId?: string
+  previousRecord?: number
+  improvement?: number // seconds or meters improved
+  improvementPercent?: number
+  confidence: 'high' | 'medium' | 'low'
+  conditions?: {
+    temperature?: number
+    weather?: string
+    course: 'flat' | 'hilly' | 'mixed' | 'unknown'
+    surface?: 'road' | 'track' | 'trail' | 'treadmill'
+  }
+}
+
+export interface PRHistory {
+  type: PRType
+  records: PRData[]
+  currentPR?: PRData
+  previousPR?: PRData
+  improvement30Days?: number
+  improvement90Days?: number
+  improvementTrend: 'improving' | 'stable' | 'declining'
+}
+
+export interface PRAnalysis {
+  recentPRs: PRData[] // PRs from last 90 days
+  improvements: {
+    count30Days: number
+    count90Days: number
+    averageImprovement: number
+    significantImprovements: PRData[] // > 5% improvement
+  }
+  injuryRiskFactors: {
+    rapidImprovement: boolean
+    frequentPRs: boolean
+    riskScore: number // 0-100
+    warnings: string[]
+  }
+  potentialPRs: {
+    activity: SimpleActivity
+    estimatedPR: PRData
+    confidence: number
+  }[]
+}
+
 // Store State Types
 export interface UserState extends LoadingState {
   user: User | null
   achievements: Achievement[]
   personalRecords: PersonalRecord[]
+  prHistories: PRHistory[]
+  prAnalysis?: PRAnalysis
   hydrate: () => Promise<void>
   setUser: (user: User) => void
   updateUser: (updates: Partial<User>) => void
   updatePreferences: (preferences: Partial<UserPreferences>) => void
   addAchievement: (achievement: Achievement) => void
   updatePersonalRecord: (record: PersonalRecord) => void
+  updatePRData: (prData: PRData) => void
+  analyzePRs: () => void
   clearUser: () => void
 }
 
